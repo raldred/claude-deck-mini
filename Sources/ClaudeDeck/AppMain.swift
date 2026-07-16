@@ -1,10 +1,13 @@
-import Foundation
+import AppKit
 
-/// Entry point for the menu bar app. Fleshed out in task 10 (AppDelegate,
-/// AppModel, MenuBarController). Stubbed for now so the `hook` subcommand path
-/// builds and runs independently.
+/// Entry point for the menu bar app. Boots a programmatic `NSApplication` as an
+/// accessory (no Dock icon, menu bar only) and hands off to `AppDelegate`.
 enum AppMain {
     static func run() {
-        print("claude-deck: menu bar app not yet wired up (task 10)")
+        let app = NSApplication.shared
+        app.setActivationPolicy(.accessory)
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.run()
     }
 }
