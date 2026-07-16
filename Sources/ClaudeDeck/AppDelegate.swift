@@ -24,7 +24,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Accessory apps don't get key focus for free — activate so the window
         // behaves like a normal focused window, then drop back on close.
         NSApp.activate(ignoringOtherApps: true)
-        if settingsWindow == nil { settingsWindow = SettingsWindow() }
+        if settingsWindow == nil {
+            let window = SettingsWindow()
+            window.onChange = { [weak self] prefs in self?.model.apply(prefs) }
+            window.onInstallPlugin = { [weak self] in self?.installPlugin() }
+            settingsWindow = window
+        }
         settingsWindow?.show()
     }
 

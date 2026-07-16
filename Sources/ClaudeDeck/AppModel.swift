@@ -9,7 +9,7 @@ final class AppModel {
     private let statusStore: StatusFileStore
     private let resolver = NameResolver()
     private let bridge: DeckdBridge
-    private let prefs: DeckPreferences
+    private var prefs: DeckPreferences
 
     private(set) var sessions = SessionStore()
     private var page = 0
@@ -51,7 +51,21 @@ final class AppModel {
         bridge.stop()
     }
 
+    /// Apply changed preferences (from the settings window) and re-render.
+    func apply(_ newPrefs: DeckPreferences) {
+        prefs = newPrefs
+        clampPage()
+        render()
+    }
+
     // MARK: - refresh / render
+
+    /// Sessions to actually show: hidden projects filtered out.
+    private var visibleSessions: [Session] {
+        guard !prefs.hiddenProjects.isEmpty else { return sessions.sessions }
+        let hidden = Set(prefs.hiddenProjects)
+        return sessions.sessions.filter { !hidden.contains($0.projectGroup) }
+    }
 
     private func refresh() {
         var updated = SessionStore()
@@ -59,14 +73,17 @@ final class AppModel {
         sessions = updated
         clampPage()
         render()
-        let ordered = sessions.sessions.sorted(by: SessionOrdering.precedes)
+        let ordered = visibleSessions.sorted(by: SessionOrdering.precedes)
         let waiting = ordered.filter { $0.status == .waiting }.count
         onChange?(waiting, ordered)
     }
 
     private func render() {
-        let keys = DeckLayout.keys(for: sessions.sessions, page: page,
-                                   now: Date(), resolver: resolver)
+        // Paging off → cap at the first keyCount sessions (no "more" key).
+        let keyCount = 6
+        let source = prefs.pagingEnabled ? visibleSessions : Array(visibleSessions.prefix(keyCount))
+        let keys = DeckLayout.keys(for: source, page: page,
+                                   now: Date(), resolver: resolver, keyCount: keyCount)
         bridge.render(keys: keys, brightness: prefs.brightness)
     }
 
@@ -74,7 +91,8 @@ final class AppModel {
 
     private func handleKeyDown(_ index: Int) {
         // Only the "more" key (last key, when in overflow) does anything in v1.
-        let keys = DeckLayout.keys(for: sessions.sessions, page: page,
+        let source = prefs.pagingEnabled ? visibleSessions : Array(visibleSessions.prefix(6))
+        let keys = DeckLayout.keys(for: source, page: page,
                                    now: Date(), resolver: resolver)
         guard index < keys.count, case .more = keys[index].kind else { return }
         page += 1
@@ -83,7 +101,8 @@ final class AppModel {
     }
 
     private var pageCount: Int {
-        let count = sessions.sessions.count
+        guard prefs.pagingEnabled else { return 1 }
+        let count = visibleSessions.count
         guard count > 6 else { return 1 }
         let perPage = 5
         return (count + perPage - 1) / perPage
