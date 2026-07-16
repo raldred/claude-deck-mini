@@ -16,15 +16,44 @@ for you.
 
 ## Install
 
-Requires macOS 13+, a Stream Deck Mini, and Xcode command line tools.
+Requires macOS 13+, a Stream Deck Mini, Xcode command line tools, and `python3`.
+
+```sh
+scripts/install.sh
+```
+
+This builds a release binary, creates a Python venv for the device helper,
+assembles `Claude Deck Mini.app` (a menu bar app — no Dock icon), installs it to
+`/Applications`, and registers a Claude Code plugin that reports session status.
+
+After installing:
+
+1. Launch **Claude Deck Mini** from `/Applications` (it appears in the menu bar).
+2. Start a **new** Claude Code session so the plugin's hooks activate.
+3. Plug in your Stream Deck Mini — keys populate as sessions report status.
+
+## Develop
 
 ```sh
 ./go install     # resolve Swift deps
 ./go build       # build
+./go test        # run the DeckCore test suite
 ./go run         # run in dev
+
+# Device helper (needs the venv from install.sh, or your own deps):
+deckd/venv/bin/python deckd/deckd.py --selftest   # light the keys with a demo
+python3 deckd/test_render.py                       # headless render tests
 ```
 
-A packaged `.app` and hook installation come from `scripts/install.sh` (see the plan).
+## How it works
+
+- A Claude Code **plugin** installs hooks that write a small JSON status file per
+  session to `~/.claude-deck/status/`.
+- The menu bar app watches that directory, resolves each session's `repo · branch`
+  label (worktree-aware), orders them (agents waiting on you first), and lays them
+  out across the 6 keys — with the last key paging when there are more than six.
+- A bundled Python helper (`deckd`) paints the keys and reports presses over a
+  small JSON protocol; all app logic stays in Swift.
 
 ## Status
 
