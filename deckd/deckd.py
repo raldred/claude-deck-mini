@@ -47,10 +47,10 @@ from StreamDeck.ImageHelpers import PILHelper
 
 import render
 
-FRAME_INTERVAL = 0.33          # ~3fps — coarse but easy on USB
-SCROLL_STRIDE = 4              # px advanced per frame (larger to read at low fps)
-SCROLL_HOLD_FRAMES = 2         # frames to hold at the start of each scroll cycle
-PULSE_PERIOD_FRAMES = 5        # ~1.5s breathe at 3fps
+FRAME_INTERVAL = 0.2           # 5fps — smoother scroll, still easy on USB
+SCROLL_STRIDE = 3              # px advanced per frame (~15px/sec at 5fps)
+SCROLL_HOLD_FRAMES = 3         # frames to hold at the start of each scroll cycle (~0.6s)
+PULSE_PERIOD_FRAMES = 8        # ~1.6s breathe at 5fps
 
 
 def _emit(obj: dict) -> None:
