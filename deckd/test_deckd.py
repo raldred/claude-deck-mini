@@ -16,10 +16,14 @@ class FakeDeck:
         self._size = size
         self.images = {}
         self.brightness = None
+        self.reset_count = 0
+        self.closed = False
 
     def open(self): pass
-    def reset(self): self.images = {}
-    def close(self): pass
+    def reset(self):
+        self.images = {}
+        self.reset_count += 1
+    def close(self): self.closed = True
     def set_brightness(self, v): self.brightness = v
     def set_key_callback(self, cb): pass
     def key_count(self): return self._keys
@@ -97,9 +101,21 @@ def test_empty_render_shows_no_animated_keys():
     _check(len(d._scene) == d.deck.key_count(), "scene should cover every key")
 
 
+def test_shutdown_resets_and_closes_device():
+    d = _new_deckd()
+    d.handle(_long_scene())
+    try:
+        deckd._shutdown(d)
+    except SystemExit:
+        pass  # the handler exits the process; that's expected
+    _check(d.deck.reset_count >= 1, "shutdown should reset the device")
+    _check(d.deck.closed, "shutdown should close the device")
+
+
 if __name__ == "__main__":
     test_render_marks_overflow_and_waiting_keys_animated()
     test_identical_rerender_preserves_animation_state()
     test_changed_scene_resets_animation_state()
     test_empty_render_shows_no_animated_keys()
+    test_shutdown_resets_and_closes_device()
     print("deckd tests passed")
