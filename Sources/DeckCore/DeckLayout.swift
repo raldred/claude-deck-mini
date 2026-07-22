@@ -15,6 +15,11 @@ public enum DeckLayout {
                             resolver: NameResolver, keyCount: Int = 6) -> [DeckKey] {
         let ordered = sessions.sorted(by: SessionOrdering.precedes)
 
+        // No sessions — paint a banner spanning every key.
+        if ordered.isEmpty {
+            return (0..<keyCount).map { DeckKey(index: $0, kind: .banner(text: "No active sessions")) }
+        }
+
         func agentKey(_ index: Int, _ session: Session) -> DeckKey {
             DeckKey(index: index, kind: .agent(
                 label: resolver.label(sessionId: session.sessionId, cwd: session.workingDirectory),

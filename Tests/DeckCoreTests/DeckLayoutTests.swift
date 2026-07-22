@@ -21,17 +21,25 @@ final class DeckLayoutTests: XCTestCase {
     private func kinds(_ keys: [DeckKey]) -> [String] {
         keys.map {
             switch $0.kind {
-            case .agent: return "agent"
-            case .more:  return "more"
-            case .blank: return "blank"
+            case .agent:  return "agent"
+            case .more:   return "more"
+            case .blank:  return "blank"
+            case .banner: return "banner"
             }
         }
     }
 
-    func testEmptyIsAllBlank() {
+    func testEmptyShowsBannerAcrossAllKeys() {
         let keys = DeckLayout.keys(for: [], page: 0, now: now, resolver: resolver)
         XCTAssertEqual(keys.count, 6)
-        XCTAssertEqual(kinds(keys), Array(repeating: "blank", count: 6))
+        XCTAssertEqual(kinds(keys), Array(repeating: "banner", count: 6))
+        for (i, key) in keys.enumerated() {
+            XCTAssertEqual(key.index, i)
+            guard case let .banner(text) = key.kind else {
+                return XCTFail("expected banner at \(i)")
+            }
+            XCTAssertEqual(text, "No active sessions")
+        }
     }
 
     func testThreeSessionsFillFirstThreeThenBlank() {
