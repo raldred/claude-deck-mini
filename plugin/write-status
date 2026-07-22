@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""Claude Code hook for Claude Deck Mini.
+
+Reads a hook event on stdin and records the session's status under
+~/.claude-deck/status/<session-id>.json, which the menu bar app watches.
+Self-contained (stdlib only) so it runs from Claude Code's plugin cache with
+no dependency on the app bundle. Never blocks or fails Claude: all errors are
+swallowed and the process exits 0.
+
+Mirrors HookEventName.status / HookCommand in the Swift app.
+"""
+
+import json
+import os
+import sys
+import tempfile
+from datetime import datetime, timezone
+
+WORKING = {"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse"}
+WAITING = {"Stop", "Notification", "PermissionRequest"}
+FINISHED = {"SessionEnd"}
+
+
+def _status_dir():
+    return os.path.join(os.path.expanduser("~"), ".claude-deck", "status")
+
+
+def _status_for(event):
+    if event in WORKING:
+        return "working"
+    if event in WAITING:
+        return "waiting"
+    if event in FINISHED:
+        return "finished"
+    return None
+
+
+def handle(payload):
+    session_id = payload.get("session_id")
+    event = payload.get("hook_event_name")
+    if not session_id or event is None:
+        return
+    status = _status_for(event)
+    if status is None:
+        return
+
+    path = os.path.join(_status_dir(), f"{session_id}.json")
+    if status == "finished":
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        return
+
+    record = {
+        "sessionId": session_id,
+        "status": status,
+        "cwd": payload.get("cwd"),
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    os.makedirs(_status_dir(), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=_status_dir(), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(record, f)
+        os.replace(tmp, path)  # atomic
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def main():
+    try:
+        data = sys.stdin.read()
+        if data.strip():
+            handle(json.loads(data))
+    except Exception:
+        pass  # never fail the hook
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
