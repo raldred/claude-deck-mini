@@ -16,6 +16,13 @@ public struct PluginInstaller {
     private var installedPlugins: URL { claudeDir.appendingPathComponent("plugins/installed_plugins.json") }
     private var settings: URL { claudeDir.appendingPathComponent("settings.json") }
 
+    /// Where Claude Code expects the plugin's files: a version-scoped copy under
+    /// its cache. `register()` populates this from the bundle's plugin subtree.
+    private func cacheDir(version: String) -> URL {
+        claudeDir.appendingPathComponent(
+            "plugins/cache/\(PluginManifest.marketplaceName)/\(PluginManifest.pluginName)/\(version)")
+    }
+
     // MARK: - plugin tree
 
     /// Lay down a valid marketplace: `.claude-plugin/marketplace.json` at the root
@@ -39,28 +46,37 @@ public struct PluginInstaller {
 
     // MARK: - registry
 
-    /// Register the plugin dir as a marketplace, install it at user scope, and
-    /// enable it. Idempotent — merges into the existing registry files.
+    /// Register the marketplace, copy the plugin into Claude Code's cache (CC reads
+    /// from there, not in-place), and enable it. Idempotent — merges into the
+    /// existing registry files and replaces any existing cache copy.
     public func register(pluginDir: URL, version: String, now: Date = Date()) throws {
-        let path = pluginDir.path
+        let marketplacePath = pluginDir.path
         let iso = ISO8601DateFormatter().string(from: now)
 
-        // 1. known_marketplaces.json
+        // Copy the plugin subtree into CC's cache — CC reads from here, not in-place.
+        let source = pluginDir.appendingPathComponent("plugins/\(PluginManifest.pluginName)")
+        let cache = cacheDir(version: version)
+        let fm = FileManager.default
+        if fm.fileExists(atPath: cache.path) { try fm.removeItem(at: cache) }
+        try fm.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try fm.copyItem(at: source, to: cache)
+
+        // 1. known_marketplaces.json — marketplace root as a directory source.
         var markets = readObject(knownMarketplaces)
         markets[PluginManifest.marketplaceName] = [
-            "source": ["source": "directory", "path": path],
-            "installLocation": path,
+            "source": ["source": "directory", "path": marketplacePath],
+            "installLocation": marketplacePath,
             "lastUpdated": iso,
         ]
         try writeJSON(markets, to: knownMarketplaces)
 
-        // 2. installed_plugins.json (version 2 shape: {version, plugins:{key:[entry]}})
+        // 2. installed_plugins.json — installPath points at the CACHE copy.
         var installedRoot = readObject(installedPlugins)
         if installedRoot["version"] == nil { installedRoot["version"] = 2 }
         var plugins = installedRoot["plugins"] as? [String: Any] ?? [:]
         plugins[PluginManifest.qualifiedName] = [[
             "scope": "user",
-            "installPath": path,
+            "installPath": cache.path,
             "version": version,
             "installedAt": iso,
             "lastUpdated": iso,
