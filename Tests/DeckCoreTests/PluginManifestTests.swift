@@ -14,19 +14,19 @@ final class PluginManifestTests: XCTestCase {
         }
     }
 
-    func testHookCommandInvokesAppBinaryWithHookArg() {
+    func testHookCommandInvokesBundledScript() {
         XCTAssertTrue(PluginManifest.hookCommand.contains("CLAUDE_PLUGIN_ROOT"))
-        XCTAssertTrue(PluginManifest.hookCommand.hasSuffix("hook"))
-        XCTAssertTrue(PluginManifest.hookCommand.contains("MacOS/ClaudeDeck"))
+        XCTAssertTrue(PluginManifest.hookCommand.contains("scripts/write-status"))
+        XCTAssertFalse(PluginManifest.hookCommand.contains("MacOS/ClaudeDeck"),
+                       "hook must not reach into the app bundle; CC caches the plugin")
     }
 
-    /// The plugin dir is `…app/Contents/Resources/claude-deck-plugin`; the binary
-    /// is at `…app/Contents/MacOS/ClaudeDeck` — exactly two levels up, not three.
-    func testHookCommandPathReachesBinaryFromPluginRoot() {
-        XCTAssertTrue(PluginManifest.hookCommand.contains("/../../MacOS/ClaudeDeck"),
-                      "hook path must be two levels up: \(PluginManifest.hookCommand)")
-        XCTAssertFalse(PluginManifest.hookCommand.contains("/../../../MacOS/ClaudeDeck"),
-                       "three ../ overshoots Contents: \(PluginManifest.hookCommand)")
+    func testMarketplaceListsThePlugin() {
+        let m = PluginManifest.marketplaceJSON(version: "1.2.3")
+        XCTAssertEqual(m["name"] as? String, "claude-deck-marketplace")
+        let plugins = m["plugins"] as? [[String: Any]]
+        XCTAssertEqual(plugins?.first?["name"] as? String, "claude-deck")
+        XCTAssertEqual(plugins?.first?["source"] as? String, "./plugins/claude-deck")
     }
 
     func testPluginJSONCarriesNameAndVersion() {
