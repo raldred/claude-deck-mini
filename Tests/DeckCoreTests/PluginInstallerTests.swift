@@ -13,23 +13,65 @@ final class PluginInstallerTests: XCTestCase {
         (try? JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]) ?? [:]
     }
 
-    func testWritePluginTreeCreatesManifestAndHooks() throws {
+    /// A realistic bundle marketplace dir: the plugin tree plus a stub hook script,
+    /// so `register()`'s cache copy has a real source to copy from.
+    private func makeBundleDir(_ installer: PluginInstaller, version: String) throws -> URL {
+        let bundle = FileManager.default.temporaryDirectory
+            .appendingPathComponent("deck-bundle-\(UUID().uuidString)")
+        try installer.writePluginTree(to: bundle, version: version)
+        let scriptsDir = bundle.appendingPathComponent("plugins/claude-deck/scripts")
+        try FileManager.default.createDirectory(at: scriptsDir, withIntermediateDirectories: true)
+        try Data("#!/usr/bin/env python3\n".utf8)
+            .write(to: scriptsDir.appendingPathComponent("write-status"))
+        return bundle
+    }
+
+    func testWritePluginTreeCreatesMarketplaceAndNestedPlugin() throws {
         let installer = PluginInstaller(claudeDir: tempClaudeDir())
-        let pluginDir = FileManager.default.temporaryDirectory
+        let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("deck-plugin-\(UUID().uuidString)")
 
-        try installer.writePluginTree(to: pluginDir, version: "1.0.0")
+        try installer.writePluginTree(to: root, version: "1.0.0")
 
-        let manifest = readJSON(pluginDir.appendingPathComponent(".claude-plugin/plugin.json"))
+        let market = readJSON(root.appendingPathComponent(".claude-plugin/marketplace.json"))
+        let plugins = market["plugins"] as? [[String: Any]]
+        XCTAssertEqual(plugins?.first?["source"] as? String, "./plugins/claude-deck")
+
+        let manifest = readJSON(
+            root.appendingPathComponent("plugins/claude-deck/.claude-plugin/plugin.json"))
         XCTAssertEqual(manifest["name"] as? String, "claude-deck")
-        let hooks = readJSON(pluginDir.appendingPathComponent("hooks/hooks.json"))
+
+        let hooks = readJSON(root.appendingPathComponent("plugins/claude-deck/hooks/hooks.json"))
         XCTAssertNotNil(hooks["hooks"])
+    }
+
+    func testRegisterCopiesPluginIntoCacheAndPointsInstallPathThere() throws {
+        let claude = tempClaudeDir()
+        let installer = PluginInstaller(claudeDir: claude)
+        let bundle = try makeBundleDir(installer, version: "1.0.0")
+
+        try installer.register(pluginDir: bundle, version: "1.0.0")
+
+        let cache = claude.appendingPathComponent(
+            "plugins/cache/claude-deck-marketplace/claude-deck/1.0.0")
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: cache.appendingPathComponent("hooks/hooks.json").path),
+            "hooks not copied into cache")
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: cache.appendingPathComponent("scripts/write-status").path),
+            "script not copied into cache")
+
+        let installed = readJSON(claude.appendingPathComponent("plugins/installed_plugins.json"))
+        let entry = ((installed["plugins"] as? [String: Any])?[
+            "claude-deck@claude-deck-marketplace"] as? [[String: Any]])?.first
+        XCTAssertEqual(entry?["installPath"] as? String, cache.path,
+                       "installPath must point at the cache copy, not the bundle")
     }
 
     func testRegisterWritesAllThreeRegistryEntries() throws {
         let claude = tempClaudeDir()
         let installer = PluginInstaller(claudeDir: claude)
-        let pluginDir = URL(fileURLWithPath: "/Applications/Claude Deck Mini.app/Contents/Resources/claude-deck-plugin")
+        let pluginDir = try makeBundleDir(installer, version: "1.0.0")
 
         try installer.register(pluginDir: pluginDir, version: "1.0.0")
 
@@ -59,7 +101,8 @@ final class PluginInstallerTests: XCTestCase {
             .write(to: claude.appendingPathComponent("settings.json"))
 
         let installer = PluginInstaller(claudeDir: claude)
-        try installer.register(pluginDir: URL(fileURLWithPath: "/tmp/p"), version: "1.0.0")
+        let bundle = try makeBundleDir(installer, version: "1.0.0")
+        try installer.register(pluginDir: bundle, version: "1.0.0")
 
         let markets = readJSON(claude.appendingPathComponent("plugins/known_marketplaces.json"))
         XCTAssertNotNil(markets["other-marketplace"], "existing marketplace clobbered")
@@ -75,7 +118,7 @@ final class PluginInstallerTests: XCTestCase {
     func testRegisterIsIdempotent() throws {
         let claude = tempClaudeDir()
         let installer = PluginInstaller(claudeDir: claude)
-        let pluginDir = URL(fileURLWithPath: "/tmp/p")
+        let pluginDir = try makeBundleDir(installer, version: "1.0.0")
 
         try installer.register(pluginDir: pluginDir, version: "1.0.0")
         try installer.register(pluginDir: pluginDir, version: "1.0.0")
@@ -93,7 +136,8 @@ final class PluginInstallerTests: XCTestCase {
             .write(to: claude.appendingPathComponent("settings.json"))
 
         let installer = PluginInstaller(claudeDir: claude)
-        try installer.register(pluginDir: URL(fileURLWithPath: "/tmp/p"), version: "1.0.0")
+        let bundle = try makeBundleDir(installer, version: "1.0.0")
+        try installer.register(pluginDir: bundle, version: "1.0.0")
         try installer.unregister()
 
         let markets = readJSON(claude.appendingPathComponent("plugins/known_marketplaces.json"))
@@ -102,5 +146,16 @@ final class PluginInstallerTests: XCTestCase {
         let enabled = settings["enabledPlugins"] as? [String: Any]
         XCTAssertNil(enabled?["claude-deck@claude-deck-marketplace"])
         XCTAssertEqual(enabled?["foo@bar"] as? Bool, true, "unrelated plugin removed")
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: claude.appendingPathComponent("plugins/cache/claude-deck-marketplace").path),
+            "cache dir should be removed on unregister")
+    }
+
+    func testRegisterThrowsWhenPluginTreeMissing() throws {
+        let installer = PluginInstaller(claudeDir: tempClaudeDir())
+        let empty = FileManager.default.temporaryDirectory
+            .appendingPathComponent("deck-empty-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
+        XCTAssertThrowsError(try installer.register(pluginDir: empty, version: "1.0.0"))
     }
 }

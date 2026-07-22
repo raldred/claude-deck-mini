@@ -25,11 +25,28 @@ public enum PluginManifest {
         ]
     }
 
-    /// The command each hook runs. `${CLAUDE_PLUGIN_ROOT}` resolves to the
-    /// bundled plugin dir (`…app/Contents/Resources/claude-deck-plugin`); the app
-    /// binary sits two levels up at `…/Contents/MacOS/ClaudeDeck`.
+    /// The command each hook runs. `${CLAUDE_PLUGIN_ROOT}` resolves to the plugin
+    /// dir (in Claude Code's plugin cache), so the hook runs a self-contained
+    /// script shipped inside the plugin — no dependency on the app bundle.
     public static let hookCommand =
-        #""${CLAUDE_PLUGIN_ROOT}/../../MacOS/ClaudeDeck" hook"#
+        #""${CLAUDE_PLUGIN_ROOT}/scripts/write-status""#
+
+    /// `.claude-plugin/marketplace.json` — lists the single nested plugin. Claude
+    /// Code reads this to discover the plugin; without it, nothing loads.
+    public static func marketplaceJSON(version: String) -> [String: Any] {
+        [
+            "name": marketplaceName,
+            "owner": ["name": "Rob Aldred"],
+            "metadata": ["description": "Claude Deck Mini — Stream Deck session status"],
+            "plugins": [[
+                "name": pluginName,
+                "source": "./plugins/\(pluginName)",
+                "description": "Reports Claude Code session status for the Claude Deck Mini "
+                    + "Stream Deck app",
+                "version": version,
+            ]],
+        ]
+    }
 
     /// `hooks/hooks.json` contents: one group per tracked event.
     public static func hooksJSON() -> [String: Any] {
