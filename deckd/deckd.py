@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import signal
 import sys
 import threading
 import time
@@ -244,17 +245,24 @@ def selftest(d: Deckd):
     d.close()
 
 
+def _shutdown(deckd_instance):
+    """Reset + close the device, then exit. Runs on SIGTERM (app quit) and
+    SIGINT (Ctrl-C) so the deck never sits showing a stale frame."""
+    deckd_instance.close()
+    sys.exit(0)
+
+
 def main():
     d = Deckd(first_deck())
     d.open()
     if "--selftest" in sys.argv:
         selftest(d)
         return
+    handler = lambda *_: _shutdown(d)
+    signal.signal(signal.SIGTERM, handler)
+    signal.signal(signal.SIGINT, handler)
     d.start_frames()
-    try:
-        d.run_stdin_loop()
-    except KeyboardInterrupt:
-        d.close()
+    d.run_stdin_loop()
 
 
 if __name__ == "__main__":

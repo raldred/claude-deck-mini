@@ -31,11 +31,29 @@ final class DeckdBridge {
         queue.async { [weak self] in self?.launch() }
     }
 
+    /// Synchronous, deterministic shutdown for app quit: blank the keys, close
+    /// stdin so deckd's loop ends and resets the device, wait briefly for it to
+    /// exit, then terminate as a fallback. Runs before applicationWillTerminate
+    /// returns so the deck never keeps a stale frame.
     func stop() {
-        queue.async { [weak self] in
-            self?.stopping = true
-            self?.process?.terminate()
+        queue.sync {
+            stopping = true
+            guard let pipe = stdinPipe, let proc = process else {
+                process?.terminate()
+                return
+            }
+            if var data = try? JSONSerialization.data(withJSONObject: ["cmd": "clear"]) {
+                data.append(0x0A)
+                pipe.fileHandleForWriting.write(data)
+            }
+            try? pipe.fileHandleForWriting.close()  // EOF → deckd loop exits → device reset
         }
+        // Give deckd up to ~1s to reset and exit on its own; then force it.
+        let deadline = Date().addingTimeInterval(1.0)
+        while process?.isRunning == true, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.02)
+        }
+        if process?.isRunning == true { process?.terminate() }
     }
 
     /// Send a full render command: one spec per key + brightness.
