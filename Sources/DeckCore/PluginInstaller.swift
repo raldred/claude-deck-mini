@@ -18,8 +18,15 @@ public struct PluginInstaller {
 
     // MARK: - plugin tree
 
-    /// Write `.claude-plugin/plugin.json` + `hooks/hooks.json` into `pluginDir`.
-    public func writePluginTree(to pluginDir: URL, version: String) throws {
+    /// Lay down a valid marketplace: `.claude-plugin/marketplace.json` at the root
+    /// and the plugin nested at `plugins/<name>/` with its own manifest + hooks.
+    public func writePluginTree(to pluginRoot: URL, version: String) throws {
+        let marketDir = pluginRoot.appendingPathComponent(".claude-plugin")
+        try FileManager.default.createDirectory(at: marketDir, withIntermediateDirectories: true)
+        try writeJSON(PluginManifest.marketplaceJSON(version: version),
+                      to: marketDir.appendingPathComponent("marketplace.json"))
+
+        let pluginDir = pluginRoot.appendingPathComponent("plugins/\(PluginManifest.pluginName)")
         let manifestDir = pluginDir.appendingPathComponent(".claude-plugin")
         let hooksDir = pluginDir.appendingPathComponent("hooks")
         try FileManager.default.createDirectory(at: manifestDir, withIntermediateDirectories: true)

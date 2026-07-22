@@ -13,16 +13,22 @@ final class PluginInstallerTests: XCTestCase {
         (try? JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]) ?? [:]
     }
 
-    func testWritePluginTreeCreatesManifestAndHooks() throws {
+    func testWritePluginTreeCreatesMarketplaceAndNestedPlugin() throws {
         let installer = PluginInstaller(claudeDir: tempClaudeDir())
-        let pluginDir = FileManager.default.temporaryDirectory
+        let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("deck-plugin-\(UUID().uuidString)")
 
-        try installer.writePluginTree(to: pluginDir, version: "1.0.0")
+        try installer.writePluginTree(to: root, version: "1.0.0")
 
-        let manifest = readJSON(pluginDir.appendingPathComponent(".claude-plugin/plugin.json"))
+        let market = readJSON(root.appendingPathComponent(".claude-plugin/marketplace.json"))
+        let plugins = market["plugins"] as? [[String: Any]]
+        XCTAssertEqual(plugins?.first?["source"] as? String, "./plugins/claude-deck")
+
+        let manifest = readJSON(
+            root.appendingPathComponent("plugins/claude-deck/.claude-plugin/plugin.json"))
         XCTAssertEqual(manifest["name"] as? String, "claude-deck")
-        let hooks = readJSON(pluginDir.appendingPathComponent("hooks/hooks.json"))
+
+        let hooks = readJSON(root.appendingPathComponent("plugins/claude-deck/hooks/hooks.json"))
         XCTAssertNotNil(hooks["hooks"])
     }
 
