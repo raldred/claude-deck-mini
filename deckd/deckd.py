@@ -38,10 +38,11 @@ def _emit(obj: dict) -> None:
 class Deckd:
     def __init__(self, deck):
         self.deck = deck
-        self._lock = threading.Lock()
+        # Re-entrant: a locked frame tick calls _push_key, which re-locks.
+        self._lock = threading.RLock()
         self._size = (80, 80)
         self._scene = {}        # index -> spec (full 0..key_count, incl. blank/banner)
-        self._scene_keys = []   # raw incoming "keys" list, for scene diffing
+        self._scene_keys = None  # last incoming "keys" list; None until first render
         self._anim = {}         # index -> {"scroll": int, "hold": int}
         self._animated = set()  # indices that need per-frame repaint
         self._frame = 0
@@ -93,35 +94,38 @@ class Deckd:
         self._push_key(index, spec, scroll_x=0, marquee=marquee, pulse=1.0)
 
     def render(self, cmd):
-        brightness = cmd.get("brightness")
-        if isinstance(brightness, int):
-            self.deck.set_brightness(max(0, min(100, brightness)))
+        # One lock for the whole swap: brightness + scene state + device writes
+        # stay consistent against the frame thread and never interleave.
+        with self._lock:
+            brightness = cmd.get("brightness")
+            if isinstance(brightness, int):
+                self.deck.set_brightness(max(0, min(100, brightness)))
 
-        incoming = [k for k in cmd.get("keys", []) if "index" in k]
-        if incoming == self._scene_keys:
-            return  # identical scene — keep animating, don't reset offsets
+            incoming = [k for k in cmd.get("keys", []) if "index" in k]
+            if incoming == self._scene_keys:
+                return  # identical scene — keep animating, don't reset offsets
 
-        self._scene_keys = incoming
-        keys = {k["index"]: k for k in incoming}
-        self._scene = {i: keys.get(i, {"kind": "blank"})
-                       for i in range(self.deck.key_count())}
-        self._anim = {}
-        self._animated = set()
-        for i, spec in self._scene.items():
-            overflows, _ = render.title_overflow(spec, self._size)
-            if overflows or spec.get("status") == "waiting":
-                self._animated.add(i)
-            self._render_static(i, spec)
+            self._scene_keys = incoming
+            keys = {k["index"]: k for k in incoming}
+            self._scene = {i: keys.get(i, {"kind": "blank"})
+                           for i in range(self.deck.key_count())}
+            self._anim = {}
+            self._animated = set()
+            for i, spec in self._scene.items():
+                overflows, _ = render.title_overflow(spec, self._size)
+                if overflows or spec.get("status") == "waiting":
+                    self._animated.add(i)
+                self._render_static(i, spec)
 
     def _run_frames(self):
         while not self._stop.wait(FRAME_INTERVAL):
+            # Hold the lock across the whole tick so per-key _anim state and the
+            # device writes stay consistent with any concurrent render()/clear().
             with self._lock:
                 self._frame += 1
-                frame = self._frame
-                animated = list(self._animated)
-                scene = dict(self._scene)
-            for index in animated:
-                self._animate_key(index, scene.get(index, {"kind": "blank"}), frame)
+                for index in list(self._animated):
+                    self._animate_key(index, self._scene.get(index, {"kind": "blank"}),
+                                      self._frame)
 
     def _animate_key(self, index, spec, frame):
         overflows, text_w = render.title_overflow(spec, self._size)
@@ -149,7 +153,7 @@ class Deckd:
     def clear(self):
         with self._lock:
             self._scene = {}
-            self._scene_keys = []
+            self._scene_keys = None
             self._anim = {}
             self._animated = set()
             self.deck.reset()

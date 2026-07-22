@@ -139,7 +139,7 @@ def paint_key(spec: dict, size=(80, 80), scroll_x=0, marquee=False, pulse=1.0) -
 
     # agent
     color = STATUS_COLORS.get(spec.get("status", "idle"), DIM)
-    if pulse != 1.0:
+    if pulse < 1.0:
         color = tuple(int(c * pulse) for c in color)
     draw.rectangle([0, 0, w, 5], fill=color)
 
