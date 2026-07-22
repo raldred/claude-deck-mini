@@ -47,8 +47,25 @@ def test_long_repo_is_truncated_not_crashing():
     _check(img.size == (80, 80), "truncation changed image size")
 
 
+def test_banner_cells_are_correct_size_and_differ_by_index():
+    cell0 = render.paint_banner_cell("No active sessions", 0, size=(80, 80))
+    cell5 = render.paint_banner_cell("No active sessions", 5, size=(80, 80))
+    _check(cell0.size == (80, 80), "banner cell 0 wrong size")
+    _check(cell5.size == (80, 80), "banner cell 5 wrong size")
+    _check(cell0.tobytes() != cell5.tobytes(),
+           "banner cells 0 and 5 should not be identical")
+
+
+def test_banner_kind_routes_through_paint_key():
+    img = render.paint_key(
+        {"kind": "banner", "index": 2, "text": "No active sessions"}, size=(80, 80))
+    _check(img.size == (80, 80), "banner paint_key wrong size")
+
+
 if __name__ == "__main__":
     test_all_kinds_paint_a_correct_sized_image()
     test_status_band_color_matches_status()
     test_long_repo_is_truncated_not_crashing()
+    test_banner_cells_are_correct_size_and_differ_by_index()
+    test_banner_kind_routes_through_paint_key()
     print("render tests passed")

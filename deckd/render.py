@@ -20,6 +20,12 @@ BG = (24, 24, 27)
 FG = (235, 235, 235)
 DIM = (120, 120, 130)
 
+PAD = 6
+TITLE_SIZE = 14
+BANNER_SIZE = 26
+SCROLL_GAP = 16
+LINE_H = 18
+
 
 def _font(size: int) -> ImageFont.FreeTypeFont:
     for path in (
@@ -46,6 +52,22 @@ def _blank(size):
     return Image.new("RGB", size, BG)
 
 
+def paint_banner_cell(text: str, index: int, size=(80, 80), cols=3, rows=2) -> Image.Image:
+    """Render one wide banner across cols x rows keys and return the cell for `index`."""
+    w, h = size
+    full = Image.new("RGB", (w * cols, h * rows), BG)
+    draw = ImageDraw.Draw(full)
+    font = _font(BANNER_SIZE)
+    bbox = draw.textbbox((0, 0), text, font=font)
+    tw = bbox[2] - bbox[0]
+    th = bbox[3] - bbox[1]
+    draw.text(((w * cols - tw) / 2 - bbox[0], (h * rows - th) / 2 - bbox[1]),
+              text, font=font, fill=FG)
+    col = index % cols
+    row = index // cols
+    return full.crop((col * w, row * h, col * w + w, row * h + h))
+
+
 def paint_key(spec: dict, size=(80, 80)) -> Image.Image:
     """Render one key from its JSON spec.
 
@@ -59,10 +81,13 @@ def paint_key(spec: dict, size=(80, 80)) -> Image.Image:
     img = _blank(size)
     draw = ImageDraw.Draw(img)
     w, h = size
-    pad = 6
+    pad = PAD
 
     if kind == "blank":
         return img
+
+    if kind == "banner":
+        return paint_banner_cell(spec.get("text", ""), int(spec.get("index", 0)), size)
 
     if kind == "more":
         f = _font(15)
