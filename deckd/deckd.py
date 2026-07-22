@@ -15,9 +15,32 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import sys
 import threading
 import time
+
+
+def _ensure_hidapi_prefix() -> None:
+    """Point the streamdeck lib at a libhidapi.dylib it can load.
+
+    The lib reads HOMEBREW_PREFIX and loads `<prefix>/lib/libhidapi.dylib`.
+    When launched from Finder the app inherits no PATH and no HOMEBREW_PREFIX,
+    so the lib's own `brew --prefix` fallback can't run. Prefer a copy vendored
+    inside the app bundle (so downloads need no Homebrew), then fall back to a
+    local Homebrew install for dev.
+    """
+    if os.environ.get("HOMEBREW_PREFIX"):
+        return
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = (os.path.join(here, "vendor"), "/opt/homebrew", "/usr/local")
+    for prefix in candidates:
+        if os.path.exists(os.path.join(prefix, "lib", "libhidapi.dylib")):
+            os.environ["HOMEBREW_PREFIX"] = prefix
+            return
+
+
+_ensure_hidapi_prefix()
 
 from StreamDeck.DeviceManager import DeviceManager
 from StreamDeck.ImageHelpers import PILHelper

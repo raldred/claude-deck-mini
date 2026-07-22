@@ -16,13 +16,15 @@ for you.
 
 ## Install
 
-Requires macOS 13+, a Stream Deck Mini, Xcode command line tools, and `python3`.
+Requires macOS 13+, a Stream Deck Mini, Xcode command line tools, `python3`, and
+`hidapi` (`brew install hidapi`) at build time.
 
 ```sh
 scripts/install.sh
 ```
 
 This builds a release binary, creates a Python venv for the device helper,
+vendors `libhidapi.dylib` into the bundle (so the installed app needs no Homebrew),
 assembles `Claude Deck Mini.app` (a menu bar app with no Dock icon), installs it to
 `/Applications`, and registers a Claude Code plugin that reports session status.
 

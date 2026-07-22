@@ -27,6 +27,23 @@ cp "$BIN" "$APP/Contents/MacOS/ClaudeDeck"
 # Bundle the Python helper + its venv.
 cp -R deckd "$APP/Contents/Resources/deckd"
 rm -rf "$APP/Contents/Resources/deckd/__pycache__"
+rm -rf "$APP/Contents/Resources/deckd/vendor"
+
+# Vendor libhidapi.dylib so the app needs no Homebrew at runtime. deckd.py
+# looks for it under deckd/vendor/lib. Its only non-system dependency is its
+# own install name, so a resolved copy loaded by absolute path is portable.
+echo "==> Vendoring libhidapi.dylib into the bundle"
+HIDAPI_SRC=""
+for p in /opt/homebrew/lib/libhidapi.dylib /usr/local/lib/libhidapi.dylib; do
+  [ -f "$p" ] && HIDAPI_SRC="$p" && break
+done
+if [ -z "$HIDAPI_SRC" ]; then
+  echo "ERROR: libhidapi.dylib not found. Install it first: brew install hidapi" >&2
+  exit 1
+fi
+VENDOR_LIB="$APP/Contents/Resources/deckd/vendor/lib"
+mkdir -p "$VENDOR_LIB"
+cp -L "$HIDAPI_SRC" "$VENDOR_LIB/libhidapi.dylib"
 
 # Write the bundled Claude Code plugin tree.
 PLUGIN_DIR="$APP/Contents/Resources/claude-deck-plugin"
