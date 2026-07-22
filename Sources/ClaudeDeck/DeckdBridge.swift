@@ -143,6 +143,8 @@ final class DeckdBridge {
             return spec
         case let .more(remaining):
             return ["index": key.index, "kind": "more", "remaining": remaining]
+        case let .banner(text):
+            return ["index": key.index, "kind": "banner", "text": text]
         case .blank:
             return ["index": key.index, "kind": "blank"]
         }

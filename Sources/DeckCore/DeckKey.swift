@@ -8,6 +8,8 @@ public struct DeckKey: Equatable {
         case agent(label: DeckLabel, status: SessionStatus, age: String)
         /// The paging key: `remaining` sessions are on further pages.
         case more(remaining: Int)
+        /// Part of the "no sessions" banner spanning the whole deck.
+        case banner(text: String)
         /// An empty slot.
         case blank
     }
