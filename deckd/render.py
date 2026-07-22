@@ -48,6 +48,46 @@ def _truncate(draw, text, font, max_width):
     return text + "…" if text else ""
 
 
+def title_of(spec: dict):
+    """The title line text for an agent spec (repo, else label), or None."""
+    if spec.get("kind") != "agent":
+        return None
+    repo = spec.get("repo")
+    if repo is not None:
+        return str(repo)
+    label = spec.get("label")
+    return str(label) if label is not None else "?"
+
+
+def _text_width(text: str, font) -> int:
+    draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    return int(draw.textlength(text, font=font))
+
+
+def title_overflow(spec: dict, size=(80, 80)):
+    """(overflows, text_width_px) for an agent's title line; (False, 0) otherwise."""
+    text = title_of(spec)
+    if text is None:
+        return (False, 0)
+    max_w = size[0] - 2 * PAD
+    tw = _text_width(text, _font(TITLE_SIZE))
+    return (tw > max_w, tw)
+
+
+def _draw_title_marquee(base_img, text, font, x0, y, max_width, scroll_x):
+    """Paste a horizontally-scrolling, wrap-around copy of `text` into the title band."""
+    tw = _text_width(text, font)
+    period = tw + SCROLL_GAP
+    off = scroll_x % period if period else 0
+    strip = Image.new("RGB", (max_width, LINE_H), BG)
+    d = ImageDraw.Draw(strip)
+    x = -off
+    while x < max_width:
+        d.text((x, 0), text, font=font, fill=FG)
+        x += period
+    base_img.paste(strip, (x0, y))
+
+
 def _blank(size):
     return Image.new("RGB", size, BG)
 
@@ -68,7 +108,7 @@ def paint_banner_cell(text: str, index: int, size=(80, 80), cols=3, rows=2) -> I
     return full.crop((col * w, row * h, col * w + w, row * h + h))
 
 
-def paint_key(spec: dict, size=(80, 80)) -> Image.Image:
+def paint_key(spec: dict, size=(80, 80), scroll_x=0, marquee=False, pulse=1.0) -> Image.Image:
     """Render one key from its JSON spec.
 
     Recognised specs:
@@ -99,6 +139,8 @@ def paint_key(spec: dict, size=(80, 80)) -> Image.Image:
 
     # agent
     color = STATUS_COLORS.get(spec.get("status", "idle"), DIM)
+    if pulse != 1.0:
+        color = tuple(int(c * pulse) for c in color)
     draw.rectangle([0, 0, w, 5], fill=color)
 
     title_font = _font(14)
@@ -110,18 +152,17 @@ def paint_key(spec: dict, size=(80, 80)) -> Image.Image:
     label = spec.get("label")
 
     y = pad + 4
-    if repo is not None:
-        draw.text((pad, y), _truncate(draw, str(repo), title_font, w - 2 * pad),
-                  font=title_font, fill=FG)
-        y += 18
-        if branch:
-            draw.text((pad, y), _truncate(draw, str(branch), sub_font, w - 2 * pad),
-                      font=sub_font, fill=DIM)
-            y += 15
+    title = str(repo) if repo is not None else str(label or "?")
+    if marquee:
+        _draw_title_marquee(img, title, title_font, pad, y, w - 2 * pad, scroll_x)
     else:
-        draw.text((pad, y), _truncate(draw, str(label or "?"), title_font, w - 2 * pad),
+        draw.text((pad, y), _truncate(draw, title, title_font, w - 2 * pad),
                   font=title_font, fill=FG)
-        y += 18
+    y += 18
+    if repo is not None and branch:
+        draw.text((pad, y), _truncate(draw, str(branch), sub_font, w - 2 * pad),
+                  font=sub_font, fill=DIM)
+        y += 15
 
     age = spec.get("age")
     if age:
