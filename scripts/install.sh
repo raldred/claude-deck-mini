@@ -49,6 +49,13 @@ cp -L "$HIDAPI_SRC" "$VENDOR_LIB/libhidapi.dylib"
 PLUGIN_DIR="$APP/Contents/Resources/claude-deck-plugin"
 "$BIN" write-plugin "$PLUGIN_DIR" "$VERSION"
 
+# Bundle the self-contained hook script into the nested plugin (before register,
+# so register's cache copy picks it up).
+PLUGIN_SCRIPTS="$PLUGIN_DIR/plugins/claude-deck/scripts"
+mkdir -p "$PLUGIN_SCRIPTS"
+cp plugin/write-status "$PLUGIN_SCRIPTS/write-status"
+chmod +x "$PLUGIN_SCRIPTS/write-status"
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
