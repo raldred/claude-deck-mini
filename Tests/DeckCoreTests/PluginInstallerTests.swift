@@ -146,5 +146,16 @@ final class PluginInstallerTests: XCTestCase {
         let enabled = settings["enabledPlugins"] as? [String: Any]
         XCTAssertNil(enabled?["claude-deck@claude-deck-marketplace"])
         XCTAssertEqual(enabled?["foo@bar"] as? Bool, true, "unrelated plugin removed")
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: claude.appendingPathComponent("plugins/cache/claude-deck-marketplace").path),
+            "cache dir should be removed on unregister")
+    }
+
+    func testRegisterThrowsWhenPluginTreeMissing() throws {
+        let installer = PluginInstaller(claudeDir: tempClaudeDir())
+        let empty = FileManager.default.temporaryDirectory
+            .appendingPathComponent("deck-empty-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
+        XCTAssertThrowsError(try installer.register(pluginDir: empty, version: "1.0.0"))
     }
 }

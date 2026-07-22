@@ -1,5 +1,18 @@
 import Foundation
 
+public enum PluginInstallerError: Error, CustomStringConvertible {
+    /// `register` was called with a `pluginDir` that has no `plugins/<name>/`
+    /// subtree to copy — usually `writePluginTree` hasn't run yet.
+    case missingPluginTree(String)
+
+    public var description: String {
+        switch self {
+        case let .missingPluginTree(path):
+            return "plugin tree not found at \(path); run writePluginTree first"
+        }
+    }
+}
+
 /// Installs the Claude Deck plugin the way claude-status does: ship the plugin
 /// tree in the app bundle and register it as a directory-source marketplace via
 /// Claude Code's three registry files. All paths are injectable for testing.
@@ -57,6 +70,9 @@ public struct PluginInstaller {
         let source = pluginDir.appendingPathComponent("plugins/\(PluginManifest.pluginName)")
         let cache = cacheDir(version: version)
         let fm = FileManager.default
+        guard fm.fileExists(atPath: source.path) else {
+            throw PluginInstallerError.missingPluginTree(source.path)
+        }
         if fm.fileExists(atPath: cache.path) { try fm.removeItem(at: cache) }
         try fm.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
         try fm.copyItem(at: source, to: cache)
@@ -111,6 +127,13 @@ public struct PluginInstaller {
            enabled.removeValue(forKey: PluginManifest.qualifiedName) != nil {
             settingsRoot["enabledPlugins"] = enabled
             try writeJSON(settingsRoot, to: settings)
+        }
+
+        // Drop our whole cache tree so no stale version copy lingers.
+        let cacheRoot = claudeDir.appendingPathComponent(
+            "plugins/cache/\(PluginManifest.marketplaceName)")
+        if FileManager.default.fileExists(atPath: cacheRoot.path) {
+            try FileManager.default.removeItem(at: cacheRoot)
         }
     }
 
