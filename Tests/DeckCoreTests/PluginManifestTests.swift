@@ -20,6 +20,15 @@ final class PluginManifestTests: XCTestCase {
         XCTAssertTrue(PluginManifest.hookCommand.contains("MacOS/ClaudeDeck"))
     }
 
+    /// The plugin dir is `…app/Contents/Resources/claude-deck-plugin`; the binary
+    /// is at `…app/Contents/MacOS/ClaudeDeck` — exactly two levels up, not three.
+    func testHookCommandPathReachesBinaryFromPluginRoot() {
+        XCTAssertTrue(PluginManifest.hookCommand.contains("/../../MacOS/ClaudeDeck"),
+                      "hook path must be two levels up: \(PluginManifest.hookCommand)")
+        XCTAssertFalse(PluginManifest.hookCommand.contains("/../../../MacOS/ClaudeDeck"),
+                       "three ../ overshoots Contents: \(PluginManifest.hookCommand)")
+    }
+
     func testPluginJSONCarriesNameAndVersion() {
         let json = PluginManifest.pluginJSON(version: "1.2.3")
         XCTAssertEqual(json["name"] as? String, "claude-deck")

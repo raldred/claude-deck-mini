@@ -27,9 +27,9 @@ public enum PluginManifest {
 
     /// The command each hook runs. `${CLAUDE_PLUGIN_ROOT}` resolves to the
     /// bundled plugin dir (`…app/Contents/Resources/claude-deck-plugin`); the app
-    /// binary sits three levels up at `…/Contents/MacOS/ClaudeDeck`.
+    /// binary sits two levels up at `…/Contents/MacOS/ClaudeDeck`.
     public static let hookCommand =
-        #""${CLAUDE_PLUGIN_ROOT}/../../../MacOS/ClaudeDeck" hook"#
+        #""${CLAUDE_PLUGIN_ROOT}/../../MacOS/ClaudeDeck" hook"#
 
     /// `hooks/hooks.json` contents: one group per tracked event.
     public static func hooksJSON() -> [String: Any] {
