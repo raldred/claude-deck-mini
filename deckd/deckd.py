@@ -103,19 +103,23 @@ class Deckd:
 
     # MARK: - scene
 
-    def _push_key(self, index, spec, scroll_x=0, marquee=False, pulse=1.0):
+    def _push_key(self, index, spec, scroll_x=0, marquee=False, pulse=1.0,
+                  branch_scroll_x=0, branch_marquee=False):
         if index < 0 or index >= self.deck.key_count():
             return
         image = render.paint_key(spec, size=self._size,
-                                 scroll_x=scroll_x, marquee=marquee, pulse=pulse)
+                                 scroll_x=scroll_x, marquee=marquee, pulse=pulse,
+                                 branch_scroll_x=branch_scroll_x, branch_marquee=branch_marquee)
         native = PILHelper.to_native_format(self.deck, image)
         with self._lock:
             self.deck.set_key_image(index, native)
 
     def _render_static(self, index, spec):
         """Paint a key in its resting state (start of any animation cycle)."""
-        marquee, _ = render.title_overflow(spec, self._size)
-        self._push_key(index, spec, scroll_x=0, marquee=marquee, pulse=1.0)
+        title_over, _ = render.title_overflow(spec, self._size)
+        branch_over, _ = render.branch_overflow(spec, self._size)
+        self._push_key(index, spec, scroll_x=0, marquee=title_over, pulse=1.0,
+                       branch_scroll_x=0, branch_marquee=branch_over)
 
     def render(self, cmd):
         # One lock for the whole swap: brightness + scene state + device writes
@@ -136,8 +140,9 @@ class Deckd:
             self._anim = {}
             self._animated = set()
             for i, spec in self._scene.items():
-                overflows, _ = render.title_overflow(spec, self._size)
-                if overflows or spec.get("status") == "waiting":
+                title_over, _ = render.title_overflow(spec, self._size)
+                branch_over, _ = render.branch_overflow(spec, self._size)
+                if title_over or branch_over or spec.get("status") == "waiting":
                     self._animated.add(i)
                 self._render_static(i, spec)
 
@@ -151,28 +156,40 @@ class Deckd:
                     self._animate_key(index, self._scene.get(index, {"kind": "blank"}),
                                       self._frame)
 
+    def _advance(self, state, text_w):
+        """Advance one line's scroll offset (hold, then step, then wrap)."""
+        period = text_w + render.SCROLL_GAP
+        if state["hold"] < SCROLL_HOLD_FRAMES:
+            state["hold"] += 1
+        else:
+            state["scroll"] += SCROLL_STRIDE
+            if state["scroll"] >= period:
+                state["scroll"] = 0
+                state["hold"] = 0
+        return state["scroll"]
+
     def _animate_key(self, index, spec, frame):
-        overflows, text_w = render.title_overflow(spec, self._size)
+        title_over, title_w = render.title_overflow(spec, self._size)
+        branch_over, branch_w = render.branch_overflow(spec, self._size)
+        lines = self._anim.setdefault(index, {})
+
         scroll_x = 0
-        marquee = overflows
-        if overflows:
-            st = self._anim.setdefault(index, {"scroll": 0, "hold": 0})
-            period = text_w + render.SCROLL_GAP
-            if st["hold"] < SCROLL_HOLD_FRAMES:
-                st["hold"] += 1
-            else:
-                st["scroll"] += SCROLL_STRIDE
-                if st["scroll"] >= period:
-                    st["scroll"] = 0
-                    st["hold"] = 0
-            scroll_x = st["scroll"]
+        if title_over:
+            scroll_x = self._advance(
+                lines.setdefault("title", {"scroll": 0, "hold": 0}), title_w)
+
+        branch_scroll_x = 0
+        if branch_over:
+            branch_scroll_x = self._advance(
+                lines.setdefault("branch", {"scroll": 0, "hold": 0}), branch_w)
 
         pulse = 1.0
         if spec.get("status") == "waiting":
             phase = 2 * math.pi * (frame % PULSE_PERIOD_FRAMES) / PULSE_PERIOD_FRAMES
             pulse = 0.5 + 0.5 * (0.5 + 0.5 * math.sin(phase))
 
-        self._push_key(index, spec, scroll_x=scroll_x, marquee=marquee, pulse=pulse)
+        self._push_key(index, spec, scroll_x=scroll_x, marquee=title_over, pulse=pulse,
+                       branch_scroll_x=branch_scroll_x, branch_marquee=branch_over)
 
     def clear(self):
         with self._lock:
