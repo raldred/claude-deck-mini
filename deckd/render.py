@@ -22,6 +22,7 @@ DIM = (120, 120, 130)
 
 PAD = 6
 TITLE_SIZE = 14
+SUB_SIZE = 11
 BANNER_SIZE = 26
 SCROLL_GAP = 16
 LINE_H = 18
@@ -74,8 +75,29 @@ def title_overflow(spec: dict, size=(80, 80)):
     return (tw > max_w, tw)
 
 
-def _draw_title_marquee(base_img, text, font, x0, y, max_width, scroll_x):
-    """Paste a horizontally-scrolling, wrap-around copy of `text` into the title band."""
+def branch_of(spec: dict):
+    """The subtitle line: branch when there's a repo, else nothing (the single
+    `label` case has no second line). Returns None when there's no subtitle."""
+    if spec.get("kind") != "agent":
+        return None
+    branch = spec.get("branch")
+    if spec.get("repo") is not None and branch:
+        return str(branch)
+    return None
+
+
+def branch_overflow(spec: dict, size=(80, 80)):
+    """(overflows, text_width_px) for an agent's branch line; (False, 0) otherwise."""
+    text = branch_of(spec)
+    if text is None:
+        return (False, 0)
+    max_w = size[0] - 2 * PAD
+    tw = _text_width(text, _font(SUB_SIZE))
+    return (tw > max_w, tw)
+
+
+def _draw_marquee(base_img, text, font, x0, y, max_width, scroll_x, fill=FG):
+    """Paste a horizontally-scrolling, wrap-around copy of `text` into a line band."""
     tw = _text_width(text, font)
     period = tw + SCROLL_GAP
     off = scroll_x % period if period else 0
@@ -83,7 +105,7 @@ def _draw_title_marquee(base_img, text, font, x0, y, max_width, scroll_x):
     d = ImageDraw.Draw(strip)
     x = -off
     while x < max_width:
-        d.text((x, 0), text, font=font, fill=FG)
+        d.text((x, 0), text, font=font, fill=fill)
         x += period
     base_img.paste(strip, (x0, y))
 
@@ -108,7 +130,8 @@ def paint_banner_cell(text: str, index: int, size=(80, 80), cols=3, rows=2) -> I
     return full.crop((col * w, row * h, col * w + w, row * h + h))
 
 
-def paint_key(spec: dict, size=(80, 80), scroll_x=0, marquee=False, pulse=1.0) -> Image.Image:
+def paint_key(spec: dict, size=(80, 80), scroll_x=0, marquee=False, pulse=1.0,
+              branch_scroll_x=0, branch_marquee=False) -> Image.Image:
     """Render one key from its JSON spec.
 
     Recognised specs:
@@ -154,14 +177,18 @@ def paint_key(spec: dict, size=(80, 80), scroll_x=0, marquee=False, pulse=1.0) -
     y = pad + 4
     title = str(repo) if repo is not None else str(label or "?")
     if marquee:
-        _draw_title_marquee(img, title, title_font, pad, y, w - 2 * pad, scroll_x)
+        _draw_marquee(img, title, title_font, pad, y, w - 2 * pad, scroll_x)
     else:
         draw.text((pad, y), _truncate(draw, title, title_font, w - 2 * pad),
                   font=title_font, fill=FG)
     y += 18
     if repo is not None and branch:
-        draw.text((pad, y), _truncate(draw, str(branch), sub_font, w - 2 * pad),
-                  font=sub_font, fill=DIM)
+        if branch_marquee:
+            _draw_marquee(img, str(branch), sub_font, pad, y, w - 2 * pad,
+                          branch_scroll_x, fill=DIM)
+        else:
+            draw.text((pad, y), _truncate(draw, str(branch), sub_font, w - 2 * pad),
+                      font=sub_font, fill=DIM)
         y += 15
 
     age = spec.get("age")

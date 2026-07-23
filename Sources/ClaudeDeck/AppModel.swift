@@ -71,6 +71,11 @@ final class AppModel {
         var updated = SessionStore()
         StatusEngine.refresh(store: statusStore, into: &updated)
         sessions = updated
+        // Re-resolve each session's git label so a branch that changed since we
+        // first saw the session (e.g. it moved into a worktree) isn't shown stale.
+        for session in updated.sessions {
+            resolver.refresh(sessionId: session.sessionId, cwd: session.workingDirectory)
+        }
         clampPage()
         render()
         let ordered = visibleSessions.sorted(by: SessionOrdering.precedes)

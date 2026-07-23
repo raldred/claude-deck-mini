@@ -73,12 +73,27 @@ def test_identical_rerender_preserves_animation_state():
             for i in list(d._animated):
                 d._animate_key(i, d._scene.get(i), d._frame)
                 d._frame += 1
-    before = dict(d._anim.get(0, {}))
-    _check(before.get("scroll", 0) > 0, "scroll should have advanced")
+    before = d._anim.get(0, {}).get("title", {}).get("scroll", 0)
+    _check(before > 0, "title scroll should have advanced")
     # Re-render the identical scene — must NOT reset offsets.
     d.handle(_long_scene())
-    after = d._anim.get(0, {})
+    after = d._anim.get(0, {}).get("title", {}).get("scroll", 0)
     _check(after == before, f"identical re-render reset anim: {before} -> {after}")
+
+
+def test_long_branch_animates_and_scrolls_independently():
+    d = _new_deckd()
+    # Short repo (title fits) but long branch (should still animate + scroll).
+    d.handle({"cmd": "render", "keys": [
+        {"index": 0, "kind": "agent", "repo": "x",
+         "branch": "feature/" + "y" * 40, "status": "working", "age": "1m"}]})
+    _check(0 in d._animated, "key with long branch should be animated")
+    for _ in range(6):
+        with d._lock:
+            d._animate_key(0, d._scene.get(0), d._frame)
+            d._frame += 1
+    branch_scroll = d._anim.get(0, {}).get("branch", {}).get("scroll", 0)
+    _check(branch_scroll > 0, "branch scroll should advance even when title fits")
 
 
 def test_changed_scene_resets_animation_state():
@@ -115,6 +130,7 @@ def test_shutdown_resets_and_closes_device():
 if __name__ == "__main__":
     test_render_marks_overflow_and_waiting_keys_animated()
     test_identical_rerender_preserves_animation_state()
+    test_long_branch_animates_and_scrolls_independently()
     test_changed_scene_resets_animation_state()
     test_empty_render_shows_no_animated_keys()
     test_shutdown_resets_and_closes_device()

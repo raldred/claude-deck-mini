@@ -91,6 +91,40 @@ def test_pulse_dims_the_waiting_band():
     _check(sum(dim) < sum(full), "pulse=0.5 band should be dimmer than pulse=1.0")
 
 
+def test_branch_overflow_true_for_long_false_for_short():
+    long_over, long_w = render.branch_overflow(
+        {"kind": "agent", "repo": "r", "branch": "feature/" + "x" * 40,
+         "status": "working", "age": "1m"}, size=(80, 80))
+    short_over, short_w = render.branch_overflow(
+        {"kind": "agent", "repo": "r", "branch": "main", "status": "working", "age": "1m"},
+        size=(80, 80))
+    _check(long_over is True, "long branch should overflow")
+    _check(short_over is False, "short branch should not overflow")
+    _check(long_w > short_w, "long branch width should exceed short")
+
+
+def test_branch_overflow_ignores_label_only_spec():
+    # A label-only agent has no second line — the label IS the title, which the
+    # title marquee already scrolls. branch_overflow must not claim it.
+    over, width = render.branch_overflow(
+        {"kind": "agent", "label": "n" * 40, "status": "idle", "age": "1m"}, size=(80, 80))
+    _check(over is False and width == 0, "label-only spec has no branch line")
+
+
+def test_branch_overflow_false_when_no_branch():
+    over, width = render.branch_overflow(
+        {"kind": "agent", "repo": "r", "status": "working", "age": "1m"}, size=(80, 80))
+    _check(over is False and width == 0, "no branch/label should not overflow")
+
+
+def test_branch_marquee_paints_correct_size():
+    img = render.paint_key(
+        {"kind": "agent", "repo": "r", "branch": "feature/long-branch-name",
+         "status": "working", "age": "1m"},
+        size=(80, 80), branch_marquee=True, branch_scroll_x=10)
+    _check(img.size == (80, 80), "branch marquee changed image size")
+
+
 if __name__ == "__main__":
     test_all_kinds_paint_a_correct_sized_image()
     test_status_band_color_matches_status()
@@ -101,4 +135,8 @@ if __name__ == "__main__":
     test_non_agent_never_overflows()
     test_marquee_paints_correct_size()
     test_pulse_dims_the_waiting_band()
+    test_branch_overflow_true_for_long_false_for_short()
+    test_branch_overflow_ignores_label_only_spec()
+    test_branch_overflow_false_when_no_branch()
+    test_branch_marquee_paints_correct_size()
     print("render tests passed")
