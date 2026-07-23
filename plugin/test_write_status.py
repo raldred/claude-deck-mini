@@ -112,6 +112,31 @@ def test_subagent_tool_event_also_writes_sidecar():
                "subagent tool event must not write a status file")
 
 
+def test_pid_walk_climbs_past_shell_and_returns_int():
+    # Fake `ps` forcing a 2-level walk: any starting pid resolves to a non-claude
+    # shell whose ppid is 2000; pid 2000 resolves to "claude". The walk must climb
+    # past the shell and return pid 2000 as an INT — a string pid (the bug) decodes
+    # to null in Swift and defeats the reaper.
+    with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as bindir:
+        ps = os.path.join(bindir, "ps")
+        with open(ps, "w") as f:
+            f.write(
+                "#!/usr/bin/env python3\n"
+                "import sys\n"
+                "pid = sys.argv[-1]\n"
+                "print('3000 claude' if pid == '2000' else '2000 zsh')\n"
+            )
+        os.chmod(ps, 0o755)
+        env = dict(os.environ, HOME=home, PATH=bindir + os.pathsep + os.environ["PATH"])
+        env.pop("CLAUDE_DECK_PID_OVERRIDE", None)
+        subprocess.run([sys.executable, SCRIPT],
+                       input=json.dumps({"session_id": "s", "hook_event_name": "PostToolUse"}),
+                       text=True, env=env)
+        rec = json.load(open(_status_path(home, "s")))
+        _check(rec.get("pid") == 2000,
+               f"walk should return int 2000, got {type(rec.get('pid')).__name__}: {rec.get('pid')!r}")
+
+
 def test_subagent_stop_deletes_sidecar():
     with tempfile.TemporaryDirectory() as home:
         transcript = "/p/PARENT.jsonl"
@@ -132,6 +157,7 @@ if __name__ == "__main__":
     test_unknown_event_is_noop()
     test_malformed_json_exits_zero()
     test_main_event_records_pid()
+    test_pid_walk_climbs_past_shell_and_returns_int()
     test_subagent_event_writes_sidecar_not_status()
     test_subagent_tool_event_also_writes_sidecar()
     test_subagent_stop_deletes_sidecar()

@@ -74,11 +74,11 @@ def _claude_pid():
             if not out:
                 break
             parts = out.split(None, 1)
-            ppid = parts[0]
+            ppid = int(parts[0])
             comm = parts[1] if len(parts) > 1 else ""
             if "claude" in comm.lower():
                 return pid
-            if ppid in ("0", "1", str(pid)):
+            if ppid in (0, 1, pid):
                 break
             pid = ppid
     except Exception:
@@ -122,6 +122,10 @@ def _handle_subagent(payload, agent_id, event):
         return
     if event not in SUBAGENT_START:
         return
+    # The parent session id is the subagent's transcript filename: subagents
+    # write into the parent's transcript. If transcript_path is ever absent the
+    # sidecar still gets written (and pid-reaped later) but with parentId=None,
+    # so the parent's badge just won't count it.
     transcript = payload.get("transcript_path") or ""
     parent_id = os.path.splitext(os.path.basename(transcript))[0] or None
     _write_json(path, {
