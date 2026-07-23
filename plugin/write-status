@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """Claude Code hook for Claude Deck Mini.
 
 Reads a hook event on stdin and records the session's status under
