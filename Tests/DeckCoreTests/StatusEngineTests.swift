@@ -15,7 +15,8 @@ final class StatusEngineTests: XCTestCase {
                                     timestamp: Date(timeIntervalSince1970: 9)))
 
         var sessions = SessionStore()
-        StatusEngine.refresh(store: store, into: &sessions)
+        StatusEngine.refresh(store: store, into: &sessions,
+                             now: Date(timeIntervalSince1970: 9))
 
         XCTAssertEqual(sessions.session(sessionId: "c1")?.status, .waiting)
         XCTAssertEqual(sessions.session(sessionId: "c1")?.workingDirectory.path, "/w")
@@ -31,7 +32,8 @@ final class StatusEngineTests: XCTestCase {
                                     timestamp: Date(timeIntervalSince1970: 9)))
 
         var sessions = SessionStore()
-        StatusEngine.refresh(store: store, into: &sessions)
+        StatusEngine.refresh(store: store, into: &sessions,
+                             now: Date(timeIntervalSince1970: 9))
 
         XCTAssertEqual(sessions.session(sessionId: "a")?.status, .working)
         XCTAssertEqual(sessions.session(sessionId: "b")?.status, .waiting)
@@ -64,6 +66,49 @@ final class StatusEngineTests: XCTestCase {
         StatusEngine.refresh(store: store, into: &sessions, isAlive: { _ in false })
 
         XCTAssertNotNil(sessions.session(sessionId: "legacy"))
+    }
+
+    func testRefreshReapsWaitingSessionIdleBeyondThreshold() throws {
+        let store = StatusFileStore(directory: tempDir())
+        let now = Date(timeIntervalSince1970: 10_000)
+        // A waiting session whose last activity is 31 min ago — abandoned.
+        try store.write(StatusEvent(sessionId: "stale", status: .waiting, cwd: "/w",
+                                    timestamp: now.addingTimeInterval(-31 * 60), pid: 100))
+
+        var sessions = SessionStore()
+        StatusEngine.refresh(store: store, into: &sessions,
+                             isAlive: { _ in true }, now: now)
+
+        XCTAssertNil(sessions.session(sessionId: "stale"))
+        XCTAssertEqual(try store.readAll().count, 0, "stale waiting file reaped from disk")
+    }
+
+    func testRefreshKeepsWaitingSessionWithinThreshold() throws {
+        let store = StatusFileStore(directory: tempDir())
+        let now = Date(timeIntervalSince1970: 10_000)
+        try store.write(StatusEvent(sessionId: "recent", status: .waiting, cwd: "/w",
+                                    timestamp: now.addingTimeInterval(-29 * 60), pid: 100))
+
+        var sessions = SessionStore()
+        StatusEngine.refresh(store: store, into: &sessions,
+                             isAlive: { _ in true }, now: now)
+
+        XCTAssertNotNil(sessions.session(sessionId: "recent"))
+    }
+
+    func testRefreshNeverReapsWorkingSessionHoweverOld() throws {
+        let store = StatusFileStore(directory: tempDir())
+        let now = Date(timeIntervalSince1970: 10_000)
+        // A long-running tool call keeps status working with an old timestamp —
+        // must never be reaped on idle grounds while its process is alive.
+        try store.write(StatusEvent(sessionId: "busy", status: .working, cwd: "/w",
+                                    timestamp: now.addingTimeInterval(-6 * 3600), pid: 100))
+
+        var sessions = SessionStore()
+        StatusEngine.refresh(store: store, into: &sessions,
+                             isAlive: { _ in true }, now: now)
+
+        XCTAssertNotNil(sessions.session(sessionId: "busy"))
     }
 
     func testRefreshCountsSubagentsPerParentAndReapsDeadOnes() throws {
