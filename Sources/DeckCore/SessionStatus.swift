@@ -36,6 +36,11 @@ public enum HookEventName: String {
     case permissionRequest = "PermissionRequest"
     case stop              = "Stop"
     case sessionEnd        = "SessionEnd"
+    // Subagent lifecycle. These don't drive a session's own status — the hook
+    // script tracks them as sidecars for the parent's badge — but they're listed
+    // so the registered events and the model stay in sync.
+    case subagentStart     = "SubagentStart"
+    case subagentStop      = "SubagentStop"
 
     /// Map an event to a status.
     /// - Working: prompt submitted, session start, or any tool use. Tool events
@@ -43,7 +48,8 @@ public enum HookEventName: String {
     ///   UserPromptSubmit), flipping the session back out of "needs you".
     /// - Needs you: a finished turn (`Stop`), a permission prompt, or the idle
     ///   "waiting for your input" notification.
-    public var status: SessionStatus {
+    /// - Subagent events don't affect the parent's own status.
+    public var status: SessionStatus? {
         switch self {
         case .sessionStart, .userPromptSubmit, .preToolUse, .postToolUse:
             return .working
@@ -51,6 +57,8 @@ public enum HookEventName: String {
             return .waiting
         case .sessionEnd:
             return .finished
+        case .subagentStart, .subagentStop:
+            return nil
         }
     }
 }

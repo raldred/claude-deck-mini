@@ -8,6 +8,9 @@ public struct Session: Identifiable, Equatable {
     public var workingDirectory: URL
     public var status: SessionStatus
     public var lastActivity: Date
+    /// How many background/forked agents this session currently has running,
+    /// counted from the subagent sidecars. Shown as a badge on the key.
+    public var subagentCount: Int = 0
     /// When this session was first observed. Fixes its slot in the ordering so
     /// projects don't shuffle as their status or activity changes. The app owns
     /// the authoritative value (it survives store rebuilds); this defaults to
@@ -98,6 +101,14 @@ public struct SessionStore: Equatable {
     /// fixed across store rebuilds.
     public mutating func stampFirstSeen(using tracker: inout FirstSeenTracker) {
         sessions = tracker.stamp(sessions)
+    }
+
+    /// Set each session's `subagentCount` from a parent-id → count map. Sessions
+    /// with no entry reset to 0 so a badge clears when the last agent finishes.
+    public mutating func applySubagentCounts(_ counts: [String: Int]) {
+        for i in sessions.indices {
+            sessions[i].subagentCount = counts[sessions[i].sessionId] ?? 0
+        }
     }
 
     /// Upsert a status event by session id: update the existing row, or insert a

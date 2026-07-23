@@ -15,14 +15,20 @@ def _check(cond, msg):
         sys.exit(1)
 
 
-def _run(payload, home):
+def _run(payload, home, pid=None):
     env = dict(os.environ, HOME=home)
+    if pid is not None:
+        env["CLAUDE_DECK_PID_OVERRIDE"] = str(pid)
     return subprocess.run([sys.executable, SCRIPT], input=json.dumps(payload),
                           text=True, env=env).returncode
 
 
 def _status_path(home, session_id):
     return os.path.join(home, ".claude-deck", "status", f"{session_id}.json")
+
+
+def _sidecar_path(home, agent_id):
+    return os.path.join(home, ".claude-deck", "subagents", f"{agent_id}.json")
 
 
 def test_working_event_writes_status():
@@ -73,6 +79,51 @@ def test_malformed_json_exits_zero():
         _check(rc == 0, "malformed JSON should still exit 0")
 
 
+def test_main_event_records_pid():
+    with tempfile.TemporaryDirectory() as home:
+        _run({"session_id": "s1", "hook_event_name": "PostToolUse", "cwd": "/x"}, home, pid=4242)
+        rec = json.load(open(_status_path(home, "s1")))
+        _check(rec.get("pid") == 4242, f"expected pid 4242, got {rec.get('pid')}")
+
+
+def test_subagent_event_writes_sidecar_not_status():
+    with tempfile.TemporaryDirectory() as home:
+        transcript = "/Users/x/.claude/projects/-Users-x-Code-proj/PARENT-ID.jsonl"
+        _run({"session_id": "SUB-ID", "agent_id": "AG-1", "agent_type": "Explore",
+              "hook_event_name": "SubagentStart", "transcript_path": transcript}, home, pid=99)
+        # No status file keyed by the subagent's own session id.
+        _check(not os.path.exists(_status_path(home, "SUB-ID")),
+               "subagent must not write a status file")
+        # A sidecar keyed by agent_id, with parent id parsed from transcript_path.
+        side = json.load(open(_sidecar_path(home, "AG-1")))
+        _check(side.get("parentId") == "PARENT-ID", f"wrong parentId {side.get('parentId')}")
+        _check(side.get("agentId") == "AG-1", "wrong agentId")
+        _check(side.get("pid") == 99, "sidecar missing pid")
+
+
+def test_subagent_tool_event_also_writes_sidecar():
+    with tempfile.TemporaryDirectory() as home:
+        transcript = "/p/PARENT.jsonl"
+        _run({"session_id": "SUB", "agent_id": "AG-2",
+              "hook_event_name": "PostToolUse", "transcript_path": transcript}, home)
+        _check(os.path.exists(_sidecar_path(home, "AG-2")),
+               "subagent tool event should keep the sidecar alive")
+        _check(not os.path.exists(_status_path(home, "SUB")),
+               "subagent tool event must not write a status file")
+
+
+def test_subagent_stop_deletes_sidecar():
+    with tempfile.TemporaryDirectory() as home:
+        transcript = "/p/PARENT.jsonl"
+        _run({"session_id": "SUB", "agent_id": "AG-3",
+              "hook_event_name": "SubagentStart", "transcript_path": transcript}, home)
+        _check(os.path.exists(_sidecar_path(home, "AG-3")), "precondition: sidecar exists")
+        _run({"session_id": "SUB", "agent_id": "AG-3",
+              "hook_event_name": "SubagentStop", "transcript_path": transcript}, home)
+        _check(not os.path.exists(_sidecar_path(home, "AG-3")),
+               "SubagentStop should delete the sidecar")
+
+
 if __name__ == "__main__":
     test_working_event_writes_status()
     test_waiting_event_writes_waiting()
@@ -80,4 +131,8 @@ if __name__ == "__main__":
     test_missing_session_id_is_noop()
     test_unknown_event_is_noop()
     test_malformed_json_exits_zero()
+    test_main_event_records_pid()
+    test_subagent_event_writes_sidecar_not_status()
+    test_subagent_tool_event_also_writes_sidecar()
+    test_subagent_stop_deletes_sidecar()
     print("write-status tests passed")

@@ -13,6 +13,7 @@ public enum PluginManifest {
     public static let trackedEvents = [
         "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse",
         "Notification", "PermissionRequest", "Stop", "SessionEnd",
+        "SubagentStart", "SubagentStop",
     ]
 
     /// `.claude-plugin/plugin.json` contents.

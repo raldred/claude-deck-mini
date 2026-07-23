@@ -7,6 +7,7 @@ import Foundation
 /// pushes the render to the deck. Handles key presses (paging only in v1).
 final class AppModel {
     private let statusStore: StatusFileStore
+    private let subagentStore: SubagentFileStore
     private let resolver = NameResolver()
     private let bridge: DeckdBridge
     private var prefs: DeckPreferences
@@ -23,9 +24,11 @@ final class AppModel {
 
     init(bridge: DeckdBridge = DeckdBridge(),
          statusStore: StatusFileStore = StatusFileStore(directory: DeckPaths.statusDir),
+         subagentStore: SubagentFileStore = SubagentFileStore(directory: DeckPaths.subagentsDir),
          prefs: DeckPreferences = DeckPreferences.load()) {
         self.bridge = bridge
         self.statusStore = statusStore
+        self.subagentStore = subagentStore
         self.prefs = prefs
     }
 
@@ -70,7 +73,7 @@ final class AppModel {
 
     private func refresh() {
         var updated = SessionStore()
-        StatusEngine.refresh(store: statusStore, into: &updated)
+        StatusEngine.refresh(store: statusStore, into: &updated, subagents: subagentStore)
         updated.stampFirstSeen(using: &firstSeen)
         sessions = updated
         // Re-resolve each session's git label so a branch that changed since we

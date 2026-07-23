@@ -19,6 +19,8 @@ STATUS_COLORS = {
 BG = (24, 24, 27)
 FG = (235, 235, 235)
 DIM = (120, 120, 130)
+# Claude's accent purple — reserved for the "background agents running" badge.
+PURPLE = (155, 125, 245)
 
 PAD = 6
 TITLE_SIZE = 14
@@ -196,4 +198,21 @@ def paint_key(spec: dict, size=(80, 80), scroll_x=0, marquee=False, pulse=1.0,
         draw.text((pad, h - 16), _truncate(draw, str(age), age_font, w - 2 * pad),
                   font=age_font, fill=DIM)
 
+    subagents = int(spec.get("subagents", 0) or 0)
+    if subagents > 0:
+        _draw_subagent_badge(draw, subagents, w, h)
+
     return img
+
+
+def _draw_subagent_badge(draw, count, w, h):
+    """A small purple pill in the bottom-right showing running background agents."""
+    label = str(count)
+    font = _font(11)
+    tw = draw.textlength(label, font=font)
+    bw = int(tw) + 12
+    bh = 15
+    x1, y1 = w - PAD, h - PAD
+    x0, y0 = x1 - bw, y1 - bh
+    draw.rounded_rectangle([x0, y0, x1, y1], radius=bh // 2, fill=PURPLE)
+    draw.text((x0 + (bw - tw) / 2, y0 + 1), label, font=font, fill=(255, 255, 255))

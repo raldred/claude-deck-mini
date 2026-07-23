@@ -7,10 +7,11 @@ public enum HookHandler {
     public static func makeEvent(jsonData: Data, now: Date) throws -> StatusEvent? {
         let input = try JSONDecoder().decode(HookInput.self, from: jsonData)
         guard let event = HookEventName(rawValue: input.hookEventName),
+              let status = event.status,
               let sessionId = input.sessionId else { return nil }
         return StatusEvent(
             sessionId: sessionId,
-            status: event.status,
+            status: status,
             cwd: input.cwd,
             timestamp: now
         )

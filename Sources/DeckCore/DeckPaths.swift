@@ -8,6 +8,7 @@ public enum DeckPaths {
     }
 
     public static var statusDir: URL { root.appendingPathComponent("status") }
+    public static var subagentsDir: URL { root.appendingPathComponent("subagents") }
     public static var namesFile: URL { root.appendingPathComponent("names.json") }
     public static var prefsFile: URL { root.appendingPathComponent("prefs.json") }
 }

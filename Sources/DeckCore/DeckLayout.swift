@@ -24,7 +24,8 @@ public enum DeckLayout {
             DeckKey(index: index, kind: .agent(
                 label: resolver.label(sessionId: session.sessionId, cwd: session.workingDirectory),
                 status: session.status,
-                age: RelativeTime.since(session.lastActivity, now: now)))
+                age: RelativeTime.since(session.lastActivity, now: now),
+                subagents: session.subagentCount))
         }
 
         // Fits on one screen — no paging key needed.

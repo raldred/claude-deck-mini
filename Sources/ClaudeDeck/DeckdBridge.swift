@@ -148,9 +148,10 @@ final class DeckdBridge {
 
     static func encode(_ key: DeckKey) -> [String: Any] {
         switch key.kind {
-        case let .agent(label, status, age):
+        case let .agent(label, status, age, subagents):
             var spec: [String: Any] = ["index": key.index, "kind": "agent",
-                                       "status": status.rawValue, "age": age]
+                                       "status": status.rawValue, "age": age,
+                                       "subagents": subagents]
             switch label {
             case let .repoBranch(repo, branch):
                 spec["repo"] = repo

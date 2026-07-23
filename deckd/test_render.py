@@ -125,6 +125,33 @@ def test_branch_marquee_paints_correct_size():
     _check(img.size == (80, 80), "branch marquee changed image size")
 
 
+def _has_pixel(img, color):
+    w, h = img.size
+    px = img.load()
+    for x in range(w):
+        for y in range(h):
+            if px[x, y] == color:
+                return True
+    return False
+
+
+def test_subagent_badge_paints_purple_when_running():
+    img = render.paint_key(
+        {"kind": "agent", "repo": "r", "branch": "b", "status": "working",
+         "age": "1m", "subagents": 2}, size=(80, 80))
+    _check(_has_pixel(img, render.PURPLE), "expected purple subagent badge")
+
+
+def test_no_badge_when_no_subagents():
+    for spec in (
+        {"kind": "agent", "repo": "r", "branch": "b", "status": "working",
+         "age": "1m", "subagents": 0},
+        {"kind": "agent", "repo": "r", "branch": "b", "status": "working", "age": "1m"},
+    ):
+        img = render.paint_key(spec, size=(80, 80))
+        _check(not _has_pixel(img, render.PURPLE), f"no badge expected for {spec}")
+
+
 if __name__ == "__main__":
     test_all_kinds_paint_a_correct_sized_image()
     test_status_band_color_matches_status()
@@ -139,4 +166,6 @@ if __name__ == "__main__":
     test_branch_overflow_ignores_label_only_spec()
     test_branch_overflow_false_when_no_branch()
     test_branch_marquee_paints_correct_size()
+    test_subagent_badge_paints_purple_when_running()
+    test_no_badge_when_no_subagents()
     print("render tests passed")

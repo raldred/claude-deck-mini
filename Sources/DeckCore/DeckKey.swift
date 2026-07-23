@@ -4,8 +4,9 @@ import Foundation
 /// of these; `DeckdBridge` serialises them for the Python renderer.
 public struct DeckKey: Equatable {
     public enum Kind: Equatable {
-        /// A session: its label, status, and a relative-time "age" string.
-        case agent(label: DeckLabel, status: SessionStatus, age: String)
+        /// A session: its label, status, a relative-time "age" string, and how
+        /// many background agents it's running (0 = no badge).
+        case agent(label: DeckLabel, status: SessionStatus, age: String, subagents: Int)
         /// The paging key: `remaining` sessions are on further pages.
         case more(remaining: Int)
         /// Part of the "no sessions" banner spanning the whole deck.

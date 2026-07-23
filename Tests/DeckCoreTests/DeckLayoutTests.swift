@@ -84,17 +84,17 @@ final class DeckLayoutTests: XCTestCase {
         s[5].lastActivity = Date(timeIntervalSince1970: 1)
         let keys = DeckLayout.keys(for: s, page: 0, now: now, resolver: resolver)
         // First key is still s0 (working); the waiting session stays in slot 5.
-        if case let .agent(_, status, _) = keys[0].kind {
+        if case let .agent(_, status, _, _) = keys[0].kind {
             XCTAssertEqual(status, .working)
         } else { XCTFail("expected agent") }
-        if case let .agent(_, status, _) = keys[5].kind {
+        if case let .agent(_, status, _, _) = keys[5].kind {
             XCTAssertEqual(status, .waiting)
         } else { XCTFail("expected agent") }
     }
 
     func testAgentKeyCarriesLabelAndAge() {
         let keys = DeckLayout.keys(for: sessions(1), page: 0, now: now, resolver: resolver)
-        guard case let .agent(label, status, age) = keys[0].kind else {
+        guard case let .agent(label, status, age, _) = keys[0].kind else {
             return XCTFail("expected agent")
         }
         XCTAssertEqual(label, .plain("proj0"))

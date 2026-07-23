@@ -7,11 +7,21 @@ Self-contained (stdlib only) so it runs from Claude Code's plugin cache with
 no dependency on the app bundle. Never blocks or fails Claude: all errors are
 swallowed and the process exits 0.
 
+Subagents (forked/background agents) are handled separately. Their hooks carry
+an `agent_id` and run under their own `session_id`, but their `Stop` is
+auto-converted to `SubagentStop`. Rather than give each subagent its own key,
+we track them in ~/.claude-deck/subagents/<agent_id>.json keyed to the parent
+session (parsed from the transcript path) so the app can badge the parent.
+
+Every record carries the owning Claude process pid so the app can reap files
+whose process has died (SessionEnd is not crash-safe).
+
 Mirrors HookEventName.status / HookCommand in the Swift app.
 """
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -19,10 +29,16 @@ from datetime import datetime, timezone
 WORKING = {"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse"}
 WAITING = {"Stop", "Notification", "PermissionRequest"}
 FINISHED = {"SessionEnd"}
+SUBAGENT_START = {"SubagentStart", "UserPromptSubmit", "PreToolUse", "PostToolUse"}
+SUBAGENT_STOP = {"SubagentStop"}
 
 
 def _status_dir():
     return os.path.join(os.path.expanduser("~"), ".claude-deck", "status")
+
+
+def _subagent_dir():
+    return os.path.join(os.path.expanduser("~"), ".claude-deck", "subagents")
 
 
 def _status_for(event):
@@ -35,31 +51,45 @@ def _status_for(event):
     return None
 
 
-def handle(payload):
-    session_id = payload.get("session_id")
-    event = payload.get("hook_event_name")
-    if not session_id or event is None:
-        return
-    status = _status_for(event)
-    if status is None:
-        return
+def _claude_pid():
+    """The nearest `claude` process above this hook.
 
-    path = os.path.join(_status_dir(), f"{session_id}.json")
-    if status == "finished":
+    Hooks run under a shell (`sh -c` / zsh), so os.getppid() is that shell, not
+    Claude. Walk the ancestry until a process whose command contains "claude",
+    which is the stable, long-lived session process the app can probe for
+    liveness. Falls back to getppid() if the walk finds nothing.
+    """
+    override = os.environ.get("CLAUDE_DECK_PID_OVERRIDE")
+    if override:
         try:
-            os.remove(path)
-        except FileNotFoundError:
+            return int(override)
+        except ValueError:
             pass
-        return
+    try:
+        pid = os.getppid()
+        for _ in range(10):
+            out = subprocess.run(
+                ["ps", "-o", "ppid=,comm=", "-p", str(pid)],
+                capture_output=True, text=True, timeout=2).stdout.strip()
+            if not out:
+                break
+            parts = out.split(None, 1)
+            ppid = parts[0]
+            comm = parts[1] if len(parts) > 1 else ""
+            if "claude" in comm.lower():
+                return pid
+            if ppid in ("0", "1", str(pid)):
+                break
+            pid = ppid
+    except Exception:
+        pass
+    return os.getppid()
 
-    record = {
-        "sessionId": session_id,
-        "status": status,
-        "cwd": payload.get("cwd"),
-        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    }
-    os.makedirs(_status_dir(), exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=_status_dir(), suffix=".tmp")
+
+def _write_json(path, record):
+    d = os.path.dirname(path)
+    os.makedirs(d, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=d, suffix=".tmp")
     try:
         with os.fdopen(fd, "w") as f:
             json.dump(record, f)
@@ -70,6 +100,68 @@ def handle(payload):
         except OSError:
             pass
         raise
+
+
+def _remove(path):
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        pass
+
+
+def _now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _handle_subagent(payload, agent_id, event):
+    """Subagent hooks manage a sidecar keyed by agent_id, tied to the parent
+    session via the transcript filename. Never writes a top-level status file."""
+    path = os.path.join(_subagent_dir(), f"{agent_id}.json")
+    if event in SUBAGENT_STOP:
+        _remove(path)
+        return
+    if event not in SUBAGENT_START:
+        return
+    transcript = payload.get("transcript_path") or ""
+    parent_id = os.path.splitext(os.path.basename(transcript))[0] or None
+    _write_json(path, {
+        "agentId": agent_id,
+        "parentId": parent_id,
+        "pid": _claude_pid(),
+        "timestamp": _now(),
+    })
+
+
+def handle(payload):
+    session_id = payload.get("session_id")
+    event = payload.get("hook_event_name")
+    if event is None:
+        return
+
+    # A subagent invocation carries agent_id; track it separately from sessions.
+    agent_id = payload.get("agent_id")
+    if agent_id:
+        _handle_subagent(payload, agent_id, event)
+        return
+
+    if not session_id:
+        return
+    status = _status_for(event)
+    if status is None:
+        return
+
+    path = os.path.join(_status_dir(), f"{session_id}.json")
+    if status == "finished":
+        _remove(path)
+        return
+
+    _write_json(path, {
+        "sessionId": session_id,
+        "status": status,
+        "cwd": payload.get("cwd"),
+        "pid": _claude_pid(),
+        "timestamp": _now(),
+    })
 
 
 def main():
