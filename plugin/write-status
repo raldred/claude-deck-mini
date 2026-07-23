@@ -113,6 +113,20 @@ def _now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _has_real_transcript(payload):
+    """A real session has a non-empty .jsonl transcript. Pre-warmed spares fire
+    warmup hooks with a session_id but no transcript yet, so gating on this keeps
+    them off the deck until they become real conversations. If transcript_path is
+    absent we can't tell — return True (best-effort: never hide a real session)."""
+    transcript = payload.get("transcript_path")
+    if not transcript:
+        return True
+    try:
+        return os.path.getsize(transcript) > 0
+    except OSError:
+        return False
+
+
 def _handle_subagent(payload, agent_id, event):
     """Subagent hooks manage a sidecar keyed by agent_id, tied to the parent
     session via the transcript filename. Never writes a top-level status file."""
@@ -157,6 +171,9 @@ def handle(payload):
     path = os.path.join(_status_dir(), f"{session_id}.json")
     if status == "finished":
         _remove(path)
+        return
+
+    if not _has_real_transcript(payload):
         return
 
     _write_json(path, {

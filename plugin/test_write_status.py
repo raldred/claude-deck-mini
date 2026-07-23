@@ -23,6 +23,16 @@ def _run(payload, home, pid=None):
                           text=True, env=env).returncode
 
 
+def _transcript(home, session_id, content="{}\n"):
+    """Create a non-empty .jsonl transcript and return its path."""
+    d = os.path.join(home, "projects", "proj")
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, f"{session_id}.jsonl")
+    with open(path, "w") as f:
+        f.write(content)
+    return path
+
+
 def _status_path(home, session_id):
     return os.path.join(home, ".claude-deck", "status", f"{session_id}.json")
 
@@ -137,6 +147,57 @@ def test_pid_walk_climbs_past_shell_and_returns_int():
                f"walk should return int 2000, got {type(rec.get('pid')).__name__}: {rec.get('pid')!r}")
 
 
+def test_warmup_spare_without_transcript_is_skipped():
+    # A pre-warmed spare fires warmup hooks with a transcript_path that doesn't
+    # exist yet (no real conversation). It must NOT get a status tile.
+    with tempfile.TemporaryDirectory() as home:
+        ghost = os.path.join(home, "projects", "proj", "SPARE.jsonl")
+        _run({"session_id": "SPARE", "hook_event_name": "PreToolUse",
+              "cwd": "/x", "transcript_path": ghost}, home)
+        _check(not os.path.exists(_status_path(home, "SPARE")),
+               "spare with no transcript must not write a status file")
+
+
+def test_empty_transcript_is_skipped():
+    # Scratch/warmup can leave a zero-byte .jsonl; treat that as "not a real
+    # session yet".
+    with tempfile.TemporaryDirectory() as home:
+        t = _transcript(home, "EMPTY", content="")
+        _run({"session_id": "EMPTY", "hook_event_name": "PostToolUse",
+              "cwd": "/x", "transcript_path": t}, home)
+        _check(not os.path.exists(_status_path(home, "EMPTY")),
+               "empty transcript must not write a status file")
+
+
+def test_real_session_with_transcript_writes():
+    with tempfile.TemporaryDirectory() as home:
+        t = _transcript(home, "REAL")
+        _run({"session_id": "REAL", "hook_event_name": "PostToolUse",
+              "cwd": "/x", "transcript_path": t}, home)
+        _check(os.path.exists(_status_path(home, "REAL")),
+               "real session with a transcript must write a status file")
+
+
+def test_missing_transcript_path_writes_best_effort():
+    # If the payload carries no transcript_path at all, don't hide the session.
+    with tempfile.TemporaryDirectory() as home:
+        _run({"session_id": "NOPATH", "hook_event_name": "PostToolUse", "cwd": "/x"}, home)
+        _check(os.path.exists(_status_path(home, "NOPATH")),
+               "absent transcript_path should still write (best-effort)")
+
+
+def test_session_end_deletes_even_without_transcript():
+    # SessionEnd must always be able to clean up, transcript gate or not.
+    with tempfile.TemporaryDirectory() as home:
+        _run({"session_id": "ENDME", "hook_event_name": "PostToolUse", "cwd": "/x"}, home)
+        _check(os.path.exists(_status_path(home, "ENDME")), "precondition: file exists")
+        ghost = os.path.join(home, "projects", "proj", "ENDME.jsonl")
+        _run({"session_id": "ENDME", "hook_event_name": "SessionEnd",
+              "transcript_path": ghost}, home)
+        _check(not os.path.exists(_status_path(home, "ENDME")),
+               "SessionEnd must delete regardless of transcript")
+
+
 def test_subagent_stop_deletes_sidecar():
     with tempfile.TemporaryDirectory() as home:
         transcript = "/p/PARENT.jsonl"
@@ -161,4 +222,9 @@ if __name__ == "__main__":
     test_subagent_event_writes_sidecar_not_status()
     test_subagent_tool_event_also_writes_sidecar()
     test_subagent_stop_deletes_sidecar()
+    test_warmup_spare_without_transcript_is_skipped()
+    test_empty_transcript_is_skipped()
+    test_real_session_with_transcript_writes()
+    test_missing_transcript_path_writes_best_effort()
+    test_session_end_deletes_even_without_transcript()
     print("write-status tests passed")
