@@ -8,15 +8,22 @@ public struct Session: Identifiable, Equatable {
     public var workingDirectory: URL
     public var status: SessionStatus
     public var lastActivity: Date
+    /// When this session was first observed. Fixes its slot in the ordering so
+    /// projects don't shuffle as their status or activity changes. The app owns
+    /// the authoritative value (it survives store rebuilds); this defaults to
+    /// `lastActivity` for callers/tests that don't stamp it.
+    public var firstSeen: Date
 
     public var id: String { sessionId }
 
     public init(sessionId: String, workingDirectory: URL,
-                status: SessionStatus = .working, lastActivity: Date = .distantPast) {
+                status: SessionStatus = .working, lastActivity: Date = .distantPast,
+                firstSeen: Date? = nil) {
         self.sessionId = sessionId
         self.workingDirectory = workingDirectory
         self.status = status
         self.lastActivity = lastActivity
+        self.firstSeen = firstSeen ?? lastActivity
     }
 
     /// Marker dirs that separate a repo from its worktrees. Claude's own
@@ -85,6 +92,12 @@ public struct SessionStore: Equatable {
 
     public mutating func remove(sessionId: String) {
         sessions.removeAll { $0.sessionId == sessionId }
+    }
+
+    /// Stamp each session's `firstSeen` from the tracker so ordering slots stay
+    /// fixed across store rebuilds.
+    public mutating func stampFirstSeen(using tracker: inout FirstSeenTracker) {
+        sessions = tracker.stamp(sessions)
     }
 
     /// Upsert a status event by session id: update the existing row, or insert a

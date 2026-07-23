@@ -76,13 +76,18 @@ final class DeckLayoutTests: XCTestCase {
         XCTAssertEqual(kinds(p0), kinds(p2))
     }
 
-    func testWaitingSessionsBubbleToFront() {
+    func testStatusDoesNotChangeSlot() {
+        // A session going to .waiting must keep its slot — order is fixed by
+        // first-seen, so the last session stays last even when it needs you.
         var s = sessions(6, status: .working)
-        s[5].status = .waiting     // last one needs you
-        s[5].lastActivity = Date(timeIntervalSince1970: 1) // and waited longest
+        s[5].status = .waiting
+        s[5].lastActivity = Date(timeIntervalSince1970: 1)
         let keys = DeckLayout.keys(for: s, page: 0, now: now, resolver: resolver)
-        // First key should be the waiting session (s5).
+        // First key is still s0 (working); the waiting session stays in slot 5.
         if case let .agent(_, status, _) = keys[0].kind {
+            XCTAssertEqual(status, .working)
+        } else { XCTFail("expected agent") }
+        if case let .agent(_, status, _) = keys[5].kind {
             XCTAssertEqual(status, .waiting)
         } else { XCTFail("expected agent") }
     }

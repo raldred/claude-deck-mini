@@ -12,6 +12,7 @@ final class AppModel {
     private var prefs: DeckPreferences
 
     private(set) var sessions = SessionStore()
+    private var firstSeen = FirstSeenTracker()
     private var page = 0
 
     /// Called after each refresh so the menu bar can update its title/list.
@@ -70,6 +71,7 @@ final class AppModel {
     private func refresh() {
         var updated = SessionStore()
         StatusEngine.refresh(store: statusStore, into: &updated)
+        updated.stampFirstSeen(using: &firstSeen)
         sessions = updated
         // Re-resolve each session's git label so a branch that changed since we
         // first saw the session (e.g. it moved into a worktree) isn't shown stale.
