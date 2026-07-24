@@ -16,17 +16,22 @@ public struct Session: Identifiable, Equatable {
     /// the authoritative value (it survives store rebuilds); this defaults to
     /// `lastActivity` for callers/tests that don't stamp it.
     public var firstSeen: Date
+    /// The owning Claude process id, carried from the status file so a key press
+    /// can resolve the session's controlling terminal. Nil for records written
+    /// before pids existed.
+    public var pid: Int?
 
     public var id: String { sessionId }
 
     public init(sessionId: String, workingDirectory: URL,
                 status: SessionStatus = .working, lastActivity: Date = .distantPast,
-                firstSeen: Date? = nil) {
+                firstSeen: Date? = nil, pid: Int? = nil) {
         self.sessionId = sessionId
         self.workingDirectory = workingDirectory
         self.status = status
         self.lastActivity = lastActivity
         self.firstSeen = firstSeen ?? lastActivity
+        self.pid = pid
     }
 
     /// Marker dirs that separate a repo from its worktrees. Claude's own
@@ -120,6 +125,7 @@ public struct SessionStore: Equatable {
         if let i = sessions.firstIndex(where: { $0.sessionId == event.sessionId }) {
             sessions[i].status = event.status
             sessions[i].lastActivity = event.timestamp
+            sessions[i].pid = event.pid
             if event.cwd != nil { sessions[i].workingDirectory = dir }
             return
         }
@@ -127,6 +133,7 @@ public struct SessionStore: Equatable {
             sessionId: event.sessionId,
             workingDirectory: dir,
             status: event.status,
-            lastActivity: event.timestamp))
+            lastActivity: event.timestamp,
+            pid: event.pid))
     }
 }
