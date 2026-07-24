@@ -127,6 +127,14 @@ def test_shutdown_resets_and_closes_device():
     _check(d.deck.closed, "shutdown should close the device")
 
 
+def test_stuck_pulse_dips_darker_and_faster_than_calm():
+    calm_min = min(deckd._waiting_pulse(f, False) for f in range(deckd.CALM_PULSE_PERIOD))
+    stuck_min = min(deckd._waiting_pulse(f, True) for f in range(deckd.STUCK_PULSE_PERIOD))
+    _check(stuck_min < calm_min, "stuck pulse should dip darker than calm")
+    _check(deckd.STUCK_PULSE_PERIOD < deckd.CALM_PULSE_PERIOD, "stuck pulse should be faster")
+    _check(0.0 < stuck_min < 0.25, f"stuck floor should be a near-off blink, got {stuck_min}")
+
+
 if __name__ == "__main__":
     test_render_marks_overflow_and_waiting_keys_animated()
     test_identical_rerender_preserves_animation_state()
@@ -134,4 +142,5 @@ if __name__ == "__main__":
     test_changed_scene_resets_animation_state()
     test_empty_render_shows_no_animated_keys()
     test_shutdown_resets_and_closes_device()
+    test_stuck_pulse_dips_darker_and_faster_than_calm()
     print("deckd tests passed")
