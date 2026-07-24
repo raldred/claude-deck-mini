@@ -47,17 +47,55 @@ def test_working_event_writes_status():
         _check(rc == 0, "should exit 0")
         rec = json.load(open(_status_path(home, "s1")))
         _check(rec["sessionId"] == "s1", "wrong sessionId")
-        _check(rec["status"] == "working", f"wrong status {rec['status']}")
+        _check(rec["status"] == "thinking", f"wrong status {rec['status']}")
         _check(rec["cwd"] == "/x", "wrong cwd")
         _check(rec["timestamp"].endswith("Z"), "timestamp not ISO8601 Z")
 
 
-def test_waiting_event_writes_waiting():
+def test_stop_writes_turn_done():
     with tempfile.TemporaryDirectory() as home:
         _run({"session_id": "s2", "hook_event_name": "Stop"}, home)
         rec = json.load(open(_status_path(home, "s2")))
-        _check(rec["status"] == "waiting", f"wrong status {rec['status']}")
+        _check(rec["status"] == "turn_done", f"wrong status {rec['status']}")
         _check(rec["cwd"] is None, "cwd should be null when absent")
+
+
+def test_permission_request_writes_permission():
+    with tempfile.TemporaryDirectory() as home:
+        _run({"session_id": "s", "hook_event_name": "PermissionRequest"}, home)
+        _check(json.load(open(_status_path(home, "s")))["status"] == "permission", "not permission")
+
+
+def test_notification_permission_type_writes_permission():
+    with tempfile.TemporaryDirectory() as home:
+        _run({"session_id": "s", "hook_event_name": "Notification",
+              "notification_type": "permission_prompt"}, home)
+        _check(json.load(open(_status_path(home, "s")))["status"] == "permission", "not permission")
+
+
+def test_notification_idle_type_writes_idle():
+    with tempfile.TemporaryDirectory() as home:
+        _run({"session_id": "s", "hook_event_name": "Notification",
+              "notification_type": "idle_prompt"}, home)
+        _check(json.load(open(_status_path(home, "s")))["status"] == "idle", "not idle")
+
+
+def test_bare_notification_writes_idle():
+    with tempfile.TemporaryDirectory() as home:
+        _run({"session_id": "s", "hook_event_name": "Notification"}, home)
+        _check(json.load(open(_status_path(home, "s")))["status"] == "idle", "not idle")
+
+
+def test_pre_compact_writes_compacting():
+    with tempfile.TemporaryDirectory() as home:
+        _run({"session_id": "s", "hook_event_name": "PreCompact"}, home)
+        _check(json.load(open(_status_path(home, "s")))["status"] == "compacting", "not compacting")
+
+
+def test_post_compact_writes_thinking():
+    with tempfile.TemporaryDirectory() as home:
+        _run({"session_id": "s", "hook_event_name": "PostCompact"}, home)
+        _check(json.load(open(_status_path(home, "s")))["status"] == "thinking", "not thinking")
 
 
 def test_session_end_deletes_file():
@@ -212,7 +250,13 @@ def test_subagent_stop_deletes_sidecar():
 
 if __name__ == "__main__":
     test_working_event_writes_status()
-    test_waiting_event_writes_waiting()
+    test_stop_writes_turn_done()
+    test_permission_request_writes_permission()
+    test_notification_permission_type_writes_permission()
+    test_notification_idle_type_writes_idle()
+    test_bare_notification_writes_idle()
+    test_pre_compact_writes_compacting()
+    test_post_compact_writes_thinking()
     test_session_end_deletes_file()
     test_missing_session_id_is_noop()
     test_unknown_event_is_noop()
