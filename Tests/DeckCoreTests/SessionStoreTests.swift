@@ -38,6 +38,17 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(store.session(sessionId: "sess-1")?.workingDirectory.path, "/work/foo")
     }
 
+    func testApplyStoresAndUpdatesPid() {
+        var store = SessionStore()
+        store.apply(StatusEvent(sessionId: "s", status: .working, cwd: "/w",
+                                timestamp: Date(timeIntervalSince1970: 1), pid: 111))
+        XCTAssertEqual(store.session(sessionId: "s")?.pid, 111)
+
+        store.apply(StatusEvent(sessionId: "s", status: .waiting, cwd: "/w",
+                                timestamp: Date(timeIntervalSince1970: 2), pid: 222))
+        XCTAssertEqual(store.session(sessionId: "s")?.pid, 222)
+    }
+
     func testRemoveDropsSessionById() {
         var store = SessionStore()
         store.apply(event("a", .working))

@@ -34,6 +34,16 @@ After installing:
 2. Start a **new** Claude Code session so the plugin's hooks activate.
 3. Plug in your Stream Deck Mini, and keys populate as sessions report status.
 
+### Jumping to a session
+
+Press any key to bring that session's **iTerm2** window to the front. The first
+press asks macOS for permission to control iTerm2 (System Settings → Privacy &
+Security → Automation) — approve it once. Sessions running elsewhere
+(Terminal.app, an editor's integrated terminal) aren't focusable yet.
+
+A key that's been red for more than a few minutes blinks faster and darker, so a
+session you've left waiting stands out.
+
 ## Develop
 
 ```sh

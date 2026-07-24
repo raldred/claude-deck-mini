@@ -51,12 +51,24 @@ import render
 FRAME_INTERVAL = 0.2           # 5fps — smoother scroll, still easy on USB
 SCROLL_STRIDE = 3              # px advanced per frame (~15px/sec at 5fps)
 SCROLL_HOLD_FRAMES = 3         # frames to hold at the start of each scroll cycle (~0.6s)
-PULSE_PERIOD_FRAMES = 8        # ~1.6s breathe at 5fps
+CALM_PULSE_PERIOD = 8          # ~1.6s breathe at 5fps (waiting, not yet stuck)
+CALM_PULSE_MIN = 0.5           # dips to 50% brightness
+STUCK_PULSE_PERIOD = 4         # ~0.8s assertive blink at 5fps (stuck)
+STUCK_PULSE_MIN = 0.15         # dips to ~15% — near-off at the trough
 
 
 def _emit(obj: dict) -> None:
     sys.stdout.write(json.dumps(obj) + "\n")
     sys.stdout.flush()
+
+
+def _waiting_pulse(frame: int, stuck: bool) -> float:
+    """Brightness multiplier for a waiting key's status band. Stuck keys blink
+    faster and dip closer to dark so a long-ignored session grabs attention."""
+    period = STUCK_PULSE_PERIOD if stuck else CALM_PULSE_PERIOD
+    floor = STUCK_PULSE_MIN if stuck else CALM_PULSE_MIN
+    phase = 2 * math.pi * (frame % period) / period
+    return floor + (1 - floor) * (0.5 + 0.5 * math.sin(phase))
 
 
 class Deckd:
@@ -185,8 +197,7 @@ class Deckd:
 
         pulse = 1.0
         if spec.get("status") == "waiting":
-            phase = 2 * math.pi * (frame % PULSE_PERIOD_FRAMES) / PULSE_PERIOD_FRAMES
-            pulse = 0.5 + 0.5 * (0.5 + 0.5 * math.sin(phase))
+            pulse = _waiting_pulse(frame, bool(spec.get("stuck", False)))
 
         self._push_key(index, spec, scroll_x=scroll_x, marquee=title_over, pulse=pulse,
                        branch_scroll_x=branch_scroll_x, branch_marquee=branch_over)
@@ -246,7 +257,8 @@ def selftest(d: Deckd):
         "brightness": 70,
         "keys": [
             {"index": 0, "kind": "agent", "repo": "residently",
-             "branch": "feature/foo", "status": "waiting", "age": "2m ago"},
+             "branch": "feature/foo", "status": "waiting", "age": "6m ago",
+             "stuck": True},
             {"index": 1, "kind": "agent", "repo": "claude-deck-mini-long-name",
              "branch": "main", "status": "working", "age": "just now"},
             {"index": 2, "kind": "agent", "label": "notes",

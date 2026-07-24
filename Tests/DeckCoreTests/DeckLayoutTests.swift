@@ -84,21 +84,76 @@ final class DeckLayoutTests: XCTestCase {
         s[5].lastActivity = Date(timeIntervalSince1970: 1)
         let keys = DeckLayout.keys(for: s, page: 0, now: now, resolver: resolver)
         // First key is still s0 (working); the waiting session stays in slot 5.
-        if case let .agent(_, status, _, _) = keys[0].kind {
+        if case let .agent(_, status, _, _, _) = keys[0].kind {
             XCTAssertEqual(status, .working)
         } else { XCTFail("expected agent") }
-        if case let .agent(_, status, _, _) = keys[5].kind {
+        if case let .agent(_, status, _, _, _) = keys[5].kind {
             XCTAssertEqual(status, .waiting)
         } else { XCTFail("expected agent") }
     }
 
     func testAgentKeyCarriesLabelAndAge() {
         let keys = DeckLayout.keys(for: sessions(1), page: 0, now: now, resolver: resolver)
-        guard case let .agent(label, status, age, _) = keys[0].kind else {
+        guard case let .agent(label, status, age, _, _) = keys[0].kind else {
             return XCTFail("expected agent")
         }
         XCTAssertEqual(label, .plain("proj0"))
         XCTAssertEqual(status, .working)
         XCTAssertFalse(age.isEmpty)
+    }
+
+    func testWaitingSessionMarkedStuckPastThreshold() {
+        var s = sessions(1, status: .waiting)
+        s[0].lastActivity = now.addingTimeInterval(-200)  // 200s ago > 180 default
+        let keys = DeckLayout.keys(for: s, page: 0, now: now, resolver: resolver)
+        guard case let .agent(_, _, _, _, stuck) = keys[0].kind else { return XCTFail("expected agent") }
+        XCTAssertTrue(stuck)
+    }
+
+    func testWaitingSessionNotStuckBeforeThreshold() {
+        var s = sessions(1, status: .waiting)
+        s[0].lastActivity = now.addingTimeInterval(-10)
+        let keys = DeckLayout.keys(for: s, page: 0, now: now, resolver: resolver)
+        guard case let .agent(_, _, _, _, stuck) = keys[0].kind else { return XCTFail("expected agent") }
+        XCTAssertFalse(stuck)
+    }
+
+    func testWorkingSessionNeverStuck() {
+        var s = sessions(1, status: .working)
+        s[0].lastActivity = now.addingTimeInterval(-9999)
+        let keys = DeckLayout.keys(for: s, page: 0, now: now, resolver: resolver)
+        guard case let .agent(_, _, _, _, stuck) = keys[0].kind else { return XCTFail("expected agent") }
+        XCTAssertFalse(stuck)
+    }
+
+    func testSessionsForPageMapsKeyIndexToSession() {
+        let mapped = DeckLayout.sessionsForPage(sessions(3), page: 0)
+        XCTAssertEqual(mapped.count, 6)
+        XCTAssertEqual(mapped[0]?.sessionId, "s0")
+        XCTAssertEqual(mapped[2]?.sessionId, "s2")
+        XCTAssertNil(mapped[3])  // blank slot
+    }
+
+    func testSessionsForPageMoreKeyIsNil() {
+        let mapped = DeckLayout.sessionsForPage(sessions(7), page: 0)
+        XCTAssertEqual(mapped[0]?.sessionId, "s0")
+        XCTAssertNil(mapped[5])  // the "more" key maps to no session
+    }
+
+    func testSessionsForPageSecondPageMirrorsKeysPaging() {
+        // 7 sessions, 5 per page: page 1 shows s5, s6, then blanks, then the
+        // more key — matching testSecondPageShowsRemainderAndWraps.
+        let mapped = DeckLayout.sessionsForPage(sessions(7), page: 1)
+        XCTAssertEqual(mapped[0]?.sessionId, "s5")
+        XCTAssertEqual(mapped[1]?.sessionId, "s6")
+        XCTAssertNil(mapped[2])  // blank
+        XCTAssertNil(mapped[5])  // more key
+    }
+
+    func testSessionsForPageWrapsLikeKeys() {
+        // 7 sessions → 2 pages; page 2 == page 0.
+        let p0 = DeckLayout.sessionsForPage(sessions(7), page: 0)
+        let p2 = DeckLayout.sessionsForPage(sessions(7), page: 2)
+        XCTAssertEqual(p0.map { $0?.sessionId }, p2.map { $0?.sessionId })
     }
 }
