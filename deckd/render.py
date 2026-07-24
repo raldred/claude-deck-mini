@@ -72,12 +72,18 @@ def _text_width(text: str, font) -> int:
     return int(draw.textlength(text, font=font))
 
 
+def _title_gutter(spec: dict) -> int:
+    """Right-side space to reserve on the title line — only when this status
+    actually draws a corner glyph, so glyphless keys use the full width."""
+    return GLYPH_GUTTER if spec.get("status") in GLYPH_STATUSES else 0
+
+
 def title_overflow(spec: dict, size=(80, 80)):
     """(overflows, text_width_px) for an agent's title line; (False, 0) otherwise."""
     text = title_of(spec)
     if text is None:
         return (False, 0)
-    max_w = size[0] - 2 * PAD - GLYPH_GUTTER
+    max_w = size[0] - 2 * PAD - _title_gutter(spec)
     tw = _text_width(text, _font(TITLE_SIZE))
     return (tw > max_w, tw)
 
@@ -183,7 +189,7 @@ def paint_key(spec: dict, size=(80, 80), scroll_x=0, marquee=False, pulse=1.0,
 
     y = pad + 4
     title = str(repo) if repo is not None else str(label or "?")
-    title_w = w - 2 * pad - GLYPH_GUTTER
+    title_w = w - 2 * pad - _title_gutter(spec)
     if marquee:
         _draw_marquee(img, title, title_font, pad, y, title_w, scroll_x)
     else:

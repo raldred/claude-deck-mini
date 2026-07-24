@@ -10,15 +10,15 @@ import Foundation
 ///   check is what actually keeps the deck honest. Records with no pid (written
 ///   before pids existed) are left alone. A pid-liveness check alone can't catch
 ///   a session whose terminal was closed but whose process lingers headless under
-///   the daemon, so a `waiting` session that hasn't done anything for longer than
+///   the daemon, so a needs-you session that hasn't done anything for longer than
 ///   `idleReapAfter` is also reaped: its `timestamp` freezes when it goes idle
 ///   (no more hooks fire until the user acts), so `now - timestamp` is its idle
-///   time. `working` sessions are never idle-reaped — a long tool call keeps them
-///   working with a stale timestamp.
+///   time. Working-tier sessions are never idle-reaped — a long tool call keeps
+///   them working with a stale timestamp.
 /// - **Count subagents** per parent session from the sidecars and stamp the
 ///   count onto each session for the badge.
 public enum StatusEngine {
-    /// A `waiting` session idle longer than this is treated as abandoned and reaped.
+    /// A needs-you session idle longer than this is treated as abandoned and reaped.
     public static let idleReapAfter: TimeInterval = 30 * 60
 
     /// Default liveness probe and clock; both injectable so tests stay deterministic.
