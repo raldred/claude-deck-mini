@@ -11,6 +11,7 @@ final class AppModel {
     private let resolver = NameResolver()
     private let bridge: DeckdBridge
     private var prefs: DeckPreferences
+    private let focuser: WindowFocuser
 
     private(set) var sessions = SessionStore()
     private var firstSeen = FirstSeenTracker()
@@ -25,11 +26,13 @@ final class AppModel {
     init(bridge: DeckdBridge = DeckdBridge(),
          statusStore: StatusFileStore = StatusFileStore(directory: DeckPaths.statusDir),
          subagentStore: SubagentFileStore = SubagentFileStore(directory: DeckPaths.subagentsDir),
-         prefs: DeckPreferences = DeckPreferences.load()) {
+         prefs: DeckPreferences = DeckPreferences.load(),
+         focuser: WindowFocuser = WindowFocuser()) {
         self.bridge = bridge
         self.statusStore = statusStore
         self.subagentStore = subagentStore
         self.prefs = prefs
+        self.focuser = focuser
     }
 
     func start() {
@@ -93,17 +96,26 @@ final class AppModel {
         let keyCount = 6
         let source = prefs.pagingEnabled ? visibleSessions : Array(visibleSessions.prefix(keyCount))
         let keys = DeckLayout.keys(for: source, page: page,
-                                   now: Date(), resolver: resolver, keyCount: keyCount)
+                                   now: Date(), resolver: resolver, keyCount: keyCount,
+                                   stuckThreshold: prefs.stuckThresholdSeconds)
         bridge.render(keys: keys, brightness: prefs.brightness)
     }
 
     // MARK: - paging / key presses
 
     private func handleKeyDown(_ index: Int) {
-        // Only the "more" key (last key, when in overflow) does anything in v1.
         let source = prefs.pagingEnabled ? visibleSessions : Array(visibleSessions.prefix(6))
-        let keys = DeckLayout.keys(for: source, page: page,
-                                   now: Date(), resolver: resolver)
+
+        // A session key → raise its terminal window.
+        let perKey = DeckLayout.sessionsForPage(source, page: page)
+        if index < perKey.count, let session = perKey[index] {
+            focuser.focus(pid: session.pid)
+            return
+        }
+
+        // Otherwise, only the "more" paging key does anything.
+        let keys = DeckLayout.keys(for: source, page: page, now: Date(), resolver: resolver,
+                                   stuckThreshold: prefs.stuckThresholdSeconds)
         guard index < keys.count, case .more = keys[index].kind else { return }
         page += 1
         clampPage()
