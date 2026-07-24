@@ -22,7 +22,7 @@ public enum DeckLayout {
         }
 
         func agentKey(_ index: Int, _ session: Session) -> DeckKey {
-            let stuck = session.status == .waiting
+            let stuck = session.status.tier == .needsYou
                 && now.timeIntervalSince(session.lastActivity) >= stuckThreshold
             return DeckKey(index: index, kind: .agent(
                 label: resolver.label(sessionId: session.sessionId, cwd: session.workingDirectory),

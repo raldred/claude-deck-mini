@@ -24,7 +24,7 @@ public struct Session: Identifiable, Equatable {
     public var id: String { sessionId }
 
     public init(sessionId: String, workingDirectory: URL,
-                status: SessionStatus = .working, lastActivity: Date = .distantPast,
+                status: SessionStatus = .thinking, lastActivity: Date = .distantPast,
                 firstSeen: Date? = nil, pid: Int? = nil) {
         self.sessionId = sessionId
         self.workingDirectory = workingDirectory
@@ -85,7 +85,7 @@ public struct SessionStore: Equatable {
         sessions.first { $0.sessionId == sessionId }
     }
 
-    /// Sessions ordered by status priority (needs-you → working → idle → finished),
+    /// Sessions ordered by tier priority (needs-you → working → ended),
     /// stable within each tier so equal-status rows keep their insertion order and
     /// don't jitter as statuses change. `sorted(by:)` isn't guaranteed stable, so we
     /// tie-break on the original index.

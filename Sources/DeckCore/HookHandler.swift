@@ -7,8 +7,11 @@ public enum HookHandler {
     public static func makeEvent(jsonData: Data, now: Date) throws -> StatusEvent? {
         let input = try JSONDecoder().decode(HookInput.self, from: jsonData)
         guard let event = HookEventName(rawValue: input.hookEventName),
-              let status = event.status,
+              var status = event.status,
               let sessionId = input.sessionId else { return nil }
+        if event == .notification, input.notificationType == "permission_prompt" {
+            status = .permission
+        }
         return StatusEvent(
             sessionId: sessionId,
             status: status,

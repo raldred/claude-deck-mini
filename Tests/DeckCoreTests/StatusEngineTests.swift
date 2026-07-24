@@ -11,14 +11,14 @@ final class StatusEngineTests: XCTestCase {
 
     func testRefreshFoldsStatusFilesIntoStore() throws {
         let store = StatusFileStore(directory: tempDir())
-        try store.write(StatusEvent(sessionId: "c1", status: .waiting, cwd: "/w",
+        try store.write(StatusEvent(sessionId: "c1", status: .idle, cwd: "/w",
                                     timestamp: Date(timeIntervalSince1970: 9)))
 
         var sessions = SessionStore()
         StatusEngine.refresh(store: store, into: &sessions,
                              now: Date(timeIntervalSince1970: 9))
 
-        XCTAssertEqual(sessions.session(sessionId: "c1")?.status, .waiting)
+        XCTAssertEqual(sessions.session(sessionId: "c1")?.status, .idle)
         XCTAssertEqual(sessions.session(sessionId: "c1")?.workingDirectory.path, "/w")
     }
 
@@ -26,25 +26,25 @@ final class StatusEngineTests: XCTestCase {
         let store = StatusFileStore(directory: tempDir())
         // Two sessions, written out of order — refresh sorts by timestamp so the
         // final state per session is its latest event.
-        try store.write(StatusEvent(sessionId: "a", status: .working, cwd: "/w",
+        try store.write(StatusEvent(sessionId: "a", status: .thinking, cwd: "/w",
                                     timestamp: Date(timeIntervalSince1970: 5)))
-        try store.write(StatusEvent(sessionId: "b", status: .waiting, cwd: "/w",
+        try store.write(StatusEvent(sessionId: "b", status: .idle, cwd: "/w",
                                     timestamp: Date(timeIntervalSince1970: 9)))
 
         var sessions = SessionStore()
         StatusEngine.refresh(store: store, into: &sessions,
                              now: Date(timeIntervalSince1970: 9))
 
-        XCTAssertEqual(sessions.session(sessionId: "a")?.status, .working)
-        XCTAssertEqual(sessions.session(sessionId: "b")?.status, .waiting)
+        XCTAssertEqual(sessions.session(sessionId: "a")?.status, .thinking)
+        XCTAssertEqual(sessions.session(sessionId: "b")?.status, .idle)
         XCTAssertEqual(sessions.sessions.count, 2)
     }
 
     func testRefreshReapsFilesWhoseProcessIsDead() throws {
         let store = StatusFileStore(directory: tempDir())
-        try store.write(StatusEvent(sessionId: "alive", status: .working, cwd: "/w",
+        try store.write(StatusEvent(sessionId: "alive", status: .thinking, cwd: "/w",
                                     timestamp: Date(timeIntervalSince1970: 1), pid: 100))
-        try store.write(StatusEvent(sessionId: "dead", status: .working, cwd: "/w",
+        try store.write(StatusEvent(sessionId: "dead", status: .thinking, cwd: "/w",
                                     timestamp: Date(timeIntervalSince1970: 1), pid: 200))
 
         var sessions = SessionStore()
@@ -59,7 +59,7 @@ final class StatusEngineTests: XCTestCase {
 
     func testRefreshKeepsFilesWithNoPid() throws {
         let store = StatusFileStore(directory: tempDir())
-        try store.write(StatusEvent(sessionId: "legacy", status: .working, cwd: "/w",
+        try store.write(StatusEvent(sessionId: "legacy", status: .thinking, cwd: "/w",
                                     timestamp: Date(timeIntervalSince1970: 1)))
 
         var sessions = SessionStore()
@@ -72,7 +72,7 @@ final class StatusEngineTests: XCTestCase {
         let store = StatusFileStore(directory: tempDir())
         let now = Date(timeIntervalSince1970: 10_000)
         // A waiting session whose last activity is 31 min ago — abandoned.
-        try store.write(StatusEvent(sessionId: "stale", status: .waiting, cwd: "/w",
+        try store.write(StatusEvent(sessionId: "stale", status: .idle, cwd: "/w",
                                     timestamp: now.addingTimeInterval(-31 * 60), pid: 100))
 
         var sessions = SessionStore()
@@ -86,7 +86,7 @@ final class StatusEngineTests: XCTestCase {
     func testRefreshKeepsWaitingSessionWithinThreshold() throws {
         let store = StatusFileStore(directory: tempDir())
         let now = Date(timeIntervalSince1970: 10_000)
-        try store.write(StatusEvent(sessionId: "recent", status: .waiting, cwd: "/w",
+        try store.write(StatusEvent(sessionId: "recent", status: .idle, cwd: "/w",
                                     timestamp: now.addingTimeInterval(-29 * 60), pid: 100))
 
         var sessions = SessionStore()
@@ -101,7 +101,7 @@ final class StatusEngineTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 10_000)
         // A long-running tool call keeps status working with an old timestamp —
         // must never be reaped on idle grounds while its process is alive.
-        try store.write(StatusEvent(sessionId: "busy", status: .working, cwd: "/w",
+        try store.write(StatusEvent(sessionId: "busy", status: .thinking, cwd: "/w",
                                     timestamp: now.addingTimeInterval(-6 * 3600), pid: 100))
 
         var sessions = SessionStore()
@@ -116,7 +116,7 @@ final class StatusEngineTests: XCTestCase {
         let subDir = tempDir()
         let store = StatusFileStore(directory: statusDir)
         let subs = SubagentFileStore(directory: subDir)
-        try store.write(StatusEvent(sessionId: "parent", status: .working, cwd: "/w",
+        try store.write(StatusEvent(sessionId: "parent", status: .thinking, cwd: "/w",
                                     timestamp: Date(timeIntervalSince1970: 1), pid: 100))
         // Two live sidecars for the parent, one dead one.
         try writeSidecar(subDir, "ag1", parent: "parent", pid: 100)

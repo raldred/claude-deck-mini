@@ -60,10 +60,12 @@ final class MenuBarController {
 
     private func marker(_ status: SessionStatus) -> String {
         switch status {
-        case .waiting:  return "🔴"
-        case .working:  return "🟢"
-        case .idle:     return "⚪️"
-        case .finished: return "⚫️"
+        case .permission: return "🔴"
+        case .turnDone:   return "🟠"
+        case .idle:       return "🟡"
+        case .thinking:   return "🟢"
+        case .compacting: return "🔵"
+        case .ended:      return "⚫️"
         }
     }
 

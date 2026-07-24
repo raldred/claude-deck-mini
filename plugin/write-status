@@ -26,9 +26,7 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 
-WORKING = {"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse"}
-WAITING = {"Stop", "Notification", "PermissionRequest"}
-FINISHED = {"SessionEnd"}
+THINKING = {"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostCompact"}
 SUBAGENT_START = {"SubagentStart", "UserPromptSubmit", "PreToolUse", "PostToolUse"}
 SUBAGENT_STOP = {"SubagentStop"}
 
@@ -41,13 +39,21 @@ def _subagent_dir():
     return os.path.join(os.path.expanduser("~"), ".claude-deck", "subagents")
 
 
-def _status_for(event):
-    if event in WORKING:
-        return "working"
-    if event in WAITING:
-        return "waiting"
-    if event in FINISHED:
-        return "finished"
+def _status_for(event, payload):
+    """Map a hook event (+ payload) to a fine status string, or None to ignore.
+    Mirrors HookEventName.status / HookHandler in the Swift app."""
+    if event in THINKING:
+        return "thinking"
+    if event == "PreCompact":
+        return "compacting"
+    if event == "Stop":
+        return "turn_done"
+    if event == "PermissionRequest":
+        return "permission"
+    if event == "Notification":
+        return "permission" if payload.get("notification_type") == "permission_prompt" else "idle"
+    if event == "SessionEnd":
+        return "ended"
     return None
 
 
@@ -164,12 +170,12 @@ def handle(payload):
 
     if not session_id:
         return
-    status = _status_for(event)
+    status = _status_for(event, payload)
     if status is None:
         return
 
     path = os.path.join(_status_dir(), f"{session_id}.json")
-    if status == "finished":
+    if status == "ended":
         _remove(path)
         return
 

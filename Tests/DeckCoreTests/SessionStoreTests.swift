@@ -11,48 +11,48 @@ final class SessionStoreTests: XCTestCase {
     func testApplyInsertsUnknownSession() {
         var store = SessionStore()
 
-        store.apply(event("sess-1", .waiting, cwd: "/work/foo", at: 3))
+        store.apply(event("sess-1", .idle, cwd: "/work/foo", at: 3))
 
         let inserted = store.session(sessionId: "sess-1")
-        XCTAssertEqual(inserted?.status, .waiting)
+        XCTAssertEqual(inserted?.status, .idle)
         XCTAssertEqual(inserted?.workingDirectory.path, "/work/foo")
         XCTAssertEqual(inserted?.lastActivity, Date(timeIntervalSince1970: 3))
     }
 
     func testApplyUpdatesExistingSessionInPlace() {
         var store = SessionStore()
-        store.apply(event("sess-1", .working, at: 1))
-        store.apply(event("sess-1", .waiting, at: 2))
+        store.apply(event("sess-1", .thinking, at: 1))
+        store.apply(event("sess-1", .idle, at: 2))
 
         XCTAssertEqual(store.sessions.count, 1)
-        XCTAssertEqual(store.session(sessionId: "sess-1")?.status, .waiting)
+        XCTAssertEqual(store.session(sessionId: "sess-1")?.status, .idle)
         XCTAssertEqual(store.session(sessionId: "sess-1")?.lastActivity,
                        Date(timeIntervalSince1970: 2))
     }
 
     func testApplyKeepsPriorCwdWhenEventHasNone() {
         var store = SessionStore()
-        store.apply(event("sess-1", .working, cwd: "/work/foo", at: 1))
-        store.apply(event("sess-1", .waiting, cwd: nil, at: 2))
+        store.apply(event("sess-1", .thinking, cwd: "/work/foo", at: 1))
+        store.apply(event("sess-1", .idle, cwd: nil, at: 2))
 
         XCTAssertEqual(store.session(sessionId: "sess-1")?.workingDirectory.path, "/work/foo")
     }
 
     func testApplyStoresAndUpdatesPid() {
         var store = SessionStore()
-        store.apply(StatusEvent(sessionId: "s", status: .working, cwd: "/w",
+        store.apply(StatusEvent(sessionId: "s", status: .thinking, cwd: "/w",
                                 timestamp: Date(timeIntervalSince1970: 1), pid: 111))
         XCTAssertEqual(store.session(sessionId: "s")?.pid, 111)
 
-        store.apply(StatusEvent(sessionId: "s", status: .waiting, cwd: "/w",
+        store.apply(StatusEvent(sessionId: "s", status: .idle, cwd: "/w",
                                 timestamp: Date(timeIntervalSince1970: 2), pid: 222))
         XCTAssertEqual(store.session(sessionId: "s")?.pid, 222)
     }
 
     func testRemoveDropsSessionById() {
         var store = SessionStore()
-        store.apply(event("a", .working))
-        store.apply(event("b", .working))
+        store.apply(event("a", .thinking))
+        store.apply(event("b", .thinking))
 
         store.remove(sessionId: "a")
 
@@ -60,23 +60,24 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertNotNil(store.session(sessionId: "b"))
     }
 
-    func testSortedByStatusOrdersWaitingWorkingIdleFinished() {
+    func testSortedByStatusOrdersByTier() {
         var store = SessionStore()
-        store.apply(event("fin", .finished))
+        store.apply(event("end", .ended))
         store.apply(event("idle", .idle))
-        store.apply(event("wait", .waiting))
-        store.apply(event("work", .working))
+        store.apply(event("perm", .permission))
+        store.apply(event("think", .thinking))
 
-        XCTAssertEqual(store.sortedByStatus.map(\.sessionId), ["wait", "work", "idle", "fin"])
+        // needsYou (idle, perm) share priority 0, stable by insertion; think = 1; end = 2.
+        XCTAssertEqual(store.sortedByStatus.map(\.sessionId), ["idle", "perm", "think", "end"])
     }
 
     func testSortedByStatusIsStableWithinSameStatus() {
         var store = SessionStore()
-        store.apply(event("work-a", .working))
-        store.apply(event("wait", .waiting))
-        store.apply(event("work-b", .working))
+        store.apply(event("work-a", .thinking))
+        store.apply(event("perm", .permission))
+        store.apply(event("work-b", .thinking))
 
-        XCTAssertEqual(store.sortedByStatus.map(\.sessionId), ["wait", "work-a", "work-b"])
+        XCTAssertEqual(store.sortedByStatus.map(\.sessionId), ["perm", "work-a", "work-b"])
     }
 
     // MARK: - worktree / project grouping

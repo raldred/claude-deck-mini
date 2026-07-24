@@ -154,7 +154,7 @@ class Deckd:
             for i, spec in self._scene.items():
                 title_over, _ = render.title_overflow(spec, self._size)
                 branch_over, _ = render.branch_overflow(spec, self._size)
-                if title_over or branch_over or spec.get("status") == "waiting":
+                if title_over or branch_over or spec.get("status") in render.NEEDS_YOU:
                     self._animated.add(i)
                 self._render_static(i, spec)
 
@@ -196,7 +196,7 @@ class Deckd:
                 lines.setdefault("branch", {"scroll": 0, "hold": 0}), branch_w)
 
         pulse = 1.0
-        if spec.get("status") == "waiting":
+        if spec.get("status") in render.NEEDS_YOU:
             pulse = _waiting_pulse(frame, bool(spec.get("stuck", False)))
 
         self._push_key(index, spec, scroll_x=scroll_x, marquee=title_over, pulse=pulse,
@@ -257,14 +257,16 @@ def selftest(d: Deckd):
         "brightness": 70,
         "keys": [
             {"index": 0, "kind": "agent", "repo": "residently",
-             "branch": "feature/foo", "status": "waiting", "age": "6m ago",
+             "branch": "feature/foo", "status": "permission", "age": "6m ago",
              "stuck": True},
-            {"index": 1, "kind": "agent", "repo": "claude-deck-mini-long-name",
-             "branch": "main", "status": "working", "age": "just now"},
+            {"index": 1, "kind": "agent", "repo": "claude-deck",
+             "branch": "main", "status": "thinking", "age": "just now"},
             {"index": 2, "kind": "agent", "label": "notes",
-             "status": "idle", "age": "41h ago"},
-            {"index": 3, "kind": "blank"},
-            {"index": 4, "kind": "blank"},
+             "status": "idle", "age": "12m ago"},
+            {"index": 3, "kind": "agent", "repo": "ledger", "branch": "main",
+             "status": "compacting", "age": "just now"},
+            {"index": 4, "kind": "agent", "repo": "porch", "branch": "main",
+             "status": "turn_done", "age": "1m ago"},
             {"index": 5, "kind": "more", "remaining": 3},
         ],
     }

@@ -9,13 +9,18 @@ from __future__ import annotations
 
 from PIL import Image, ImageDraw, ImageFont
 
-# Status → accent color. Red = needs you, green = working, grey = idle.
+# Status → accent color + which states are "needs you" (pulse-eligible).
 STATUS_COLORS = {
-    "waiting": (220, 60, 60),
-    "working": (60, 180, 90),
-    "idle": (120, 120, 120),
-    "finished": (70, 70, 70),
+    "permission": (220, 60, 60),    # red — blocked on a yes/no
+    "turn_done": (235, 150, 40),    # amber — finished its turn
+    "idle": (205, 180, 70),         # gold — idle nudge
+    "thinking": (60, 180, 90),      # green — working
+    "compacting": (70, 130, 220),   # blue — compacting context
+    "ended": (70, 70, 70),          # grey tombstone
 }
+NEEDS_YOU = {"permission", "turn_done", "idle"}
+GLYPH_STATUSES = {"permission", "turn_done", "idle", "compacting"}
+GLYPH_GUTTER = 16   # right-side space reserved on the title line for the glyph
 BG = (24, 24, 27)
 FG = (235, 235, 235)
 DIM = (120, 120, 130)
@@ -67,12 +72,18 @@ def _text_width(text: str, font) -> int:
     return int(draw.textlength(text, font=font))
 
 
+def _title_gutter(spec: dict) -> int:
+    """Right-side space to reserve on the title line — only when this status
+    actually draws a corner glyph, so glyphless keys use the full width."""
+    return GLYPH_GUTTER if spec.get("status") in GLYPH_STATUSES else 0
+
+
 def title_overflow(spec: dict, size=(80, 80)):
     """(overflows, text_width_px) for an agent's title line; (False, 0) otherwise."""
     text = title_of(spec)
     if text is None:
         return (False, 0)
-    max_w = size[0] - 2 * PAD
+    max_w = size[0] - 2 * PAD - _title_gutter(spec)
     tw = _text_width(text, _font(TITLE_SIZE))
     return (tw > max_w, tw)
 
@@ -178,10 +189,11 @@ def paint_key(spec: dict, size=(80, 80), scroll_x=0, marquee=False, pulse=1.0,
 
     y = pad + 4
     title = str(repo) if repo is not None else str(label or "?")
+    title_w = w - 2 * pad - _title_gutter(spec)
     if marquee:
-        _draw_marquee(img, title, title_font, pad, y, w - 2 * pad, scroll_x)
+        _draw_marquee(img, title, title_font, pad, y, title_w, scroll_x)
     else:
-        draw.text((pad, y), _truncate(draw, title, title_font, w - 2 * pad),
+        draw.text((pad, y), _truncate(draw, title, title_font, title_w),
                   font=title_font, fill=FG)
     y += 18
     if repo is not None and branch:
@@ -202,6 +214,9 @@ def paint_key(spec: dict, size=(80, 80), scroll_x=0, marquee=False, pulse=1.0,
     if subagents > 0:
         _draw_subagent_badge(draw, subagents, w, h)
 
+    if kind == "agent" and spec.get("status") in GLYPH_STATUSES:
+        _draw_status_glyph(draw, spec.get("status"), w, h)
+
     return img
 
 
@@ -216,3 +231,24 @@ def _draw_subagent_badge(draw, count, w, h):
     x0, y0 = x1 - bw, y1 - bh
     draw.rounded_rectangle([x0, y0, x1, y1], radius=bh // 2, fill=PURPLE)
     draw.text((x0 + (bw - tw) / 2, y0 + 1), label, font=font, fill=(255, 255, 255))
+
+
+def _draw_status_glyph(draw, status, w, h):
+    """A small white glyph, top-right, distinguishing states that share a band
+    colour family. Drawn with primitives — no emoji font needed."""
+    white = (255, 255, 255)
+    x1, y0 = w - 5, 7
+    x0 = x1 - 14
+    if status == "permission":                      # padlock
+        draw.arc([x0 + 3, y0, x1 - 3, y0 + 11], start=180, end=360, fill=white, width=2)
+        draw.rectangle([x0 + 1, y0 + 6, x1 - 1, y0 + 14], fill=white)
+    elif status == "turn_done":                     # checkmark
+        draw.line([(x0 + 1, y0 + 7), (x0 + 5, y0 + 12), (x1, y0 + 1)], fill=white, width=2)
+    elif status == "idle":                          # three dots
+        for i in range(3):
+            cx = x0 + 2 + i * 5
+            draw.ellipse([cx, y0 + 9, cx + 2, y0 + 11], fill=white)
+    elif status == "compacting":                    # double down-chevron
+        for dy in (0, 4):
+            draw.line([(x0 + 1, y0 + dy + 2), (x0 + 7, y0 + dy + 7), (x1 - 1, y0 + dy + 2)],
+                      fill=white, width=2)

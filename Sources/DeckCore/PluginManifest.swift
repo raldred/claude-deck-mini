@@ -12,8 +12,8 @@ public enum PluginManifest {
     /// Hook events we register. Each maps to a status in `HookEventName`.
     public static let trackedEvents = [
         "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse",
-        "Notification", "PermissionRequest", "Stop", "SessionEnd",
-        "SubagentStart", "SubagentStop",
+        "Notification", "PermissionRequest", "Stop", "PreCompact", "PostCompact",
+        "SessionEnd", "SubagentStart", "SubagentStop",
     ]
 
     /// `.claude-plugin/plugin.json` contents.

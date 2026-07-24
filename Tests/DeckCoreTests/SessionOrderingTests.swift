@@ -4,7 +4,7 @@ import XCTest
 final class SessionOrderingTests: XCTestCase {
     private func session(_ id: String, firstSeen t: TimeInterval) -> Session {
         Session(sessionId: id, workingDirectory: URL(fileURLWithPath: "/w"),
-                status: .working, lastActivity: Date(timeIntervalSince1970: t),
+                status: .thinking, lastActivity: Date(timeIntervalSince1970: t),
                 firstSeen: Date(timeIntervalSince1970: t))
     }
 
@@ -18,10 +18,10 @@ final class SessionOrderingTests: XCTestCase {
 
     func testStatusDoesNotAffectOrder() {
         let waiting = Session(sessionId: "later", workingDirectory: URL(fileURLWithPath: "/w"),
-                              status: .waiting, lastActivity: Date(timeIntervalSince1970: 200),
+                              status: .idle, lastActivity: Date(timeIntervalSince1970: 200),
                               firstSeen: Date(timeIntervalSince1970: 200))
         let working = Session(sessionId: "earlier", workingDirectory: URL(fileURLWithPath: "/w"),
-                              status: .working, lastActivity: Date(timeIntervalSince1970: 100),
+                              status: .thinking, lastActivity: Date(timeIntervalSince1970: 100),
                               firstSeen: Date(timeIntervalSince1970: 100))
         let ordered = [waiting, working].sorted(by: SessionOrdering.precedes).map(\.sessionId)
         XCTAssertEqual(ordered, ["earlier", "later"])

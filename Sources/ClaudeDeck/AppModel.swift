@@ -87,7 +87,7 @@ final class AppModel {
         clampPage()
         render()
         let ordered = visibleSessions.sorted(by: SessionOrdering.precedes)
-        let waiting = ordered.filter { $0.status == .waiting }.count
+        let waiting = ordered.filter { $0.status.tier == .needsYou }.count
         onChange?(waiting, ordered)
     }
 

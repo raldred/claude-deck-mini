@@ -4,14 +4,14 @@ import Foundation
 /// stdin and update the status files. Kept in DeckCore so it's unit-testable
 /// without spawning a process.
 public enum HookCommand {
-    /// Apply one hook payload to the store. A `finished` event (session ended)
+    /// Apply one hook payload to the store. An `ended` event (session ended)
     /// removes the status file rather than leaving a tombstone — the deck only
     /// shows live sessions. Returns the event applied, or nil if ignored.
     @discardableResult
     public static func handle(jsonData: Data, store: StatusFileStore,
                               now: Date) throws -> StatusEvent? {
         guard let event = try HookHandler.makeEvent(jsonData: jsonData, now: now) else { return nil }
-        if event.status == .finished {
+        if event.status == .ended {
             try store.removeFile(sessionId: event.sessionId)
         } else {
             try store.write(event)
