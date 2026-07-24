@@ -139,4 +139,21 @@ final class DeckLayoutTests: XCTestCase {
         XCTAssertEqual(mapped[0]?.sessionId, "s0")
         XCTAssertNil(mapped[5])  // the "more" key maps to no session
     }
+
+    func testSessionsForPageSecondPageMirrorsKeysPaging() {
+        // 7 sessions, 5 per page: page 1 shows s5, s6, then blanks, then the
+        // more key — matching testSecondPageShowsRemainderAndWraps.
+        let mapped = DeckLayout.sessionsForPage(sessions(7), page: 1)
+        XCTAssertEqual(mapped[0]?.sessionId, "s5")
+        XCTAssertEqual(mapped[1]?.sessionId, "s6")
+        XCTAssertNil(mapped[2])  // blank
+        XCTAssertNil(mapped[5])  // more key
+    }
+
+    func testSessionsForPageWrapsLikeKeys() {
+        // 7 sessions → 2 pages; page 2 == page 0.
+        let p0 = DeckLayout.sessionsForPage(sessions(7), page: 0)
+        let p2 = DeckLayout.sessionsForPage(sessions(7), page: 2)
+        XCTAssertEqual(p0.map { $0?.sessionId }, p2.map { $0?.sessionId })
+    }
 }

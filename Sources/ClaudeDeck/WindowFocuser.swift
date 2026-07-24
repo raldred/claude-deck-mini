@@ -14,11 +14,16 @@ final class WindowFocuser {
         self.runProcess = runProcess
     }
 
+    /// Runs the `ps`/`osascript` shell-outs off the main thread: the first call
+    /// blocks until the user answers the macOS Automation permission dialog, and
+    /// a key press must never freeze the menu bar UI.
     func focus(pid: Int?) {
-        guard let pid,
-              let psOut = runProcess("/bin/ps", ["-o", "tty=", "-p", String(pid)]),
-              let tty = TtyResolver.ttyPath(fromPS: psOut) else { return }
-        _ = runProcess("/usr/bin/osascript", ["-e", ITermScript.focus(tty: tty)])
+        guard let pid else { return }
+        DispatchQueue.global(qos: .userInitiated).async { [runProcess] in
+            guard let psOut = runProcess("/bin/ps", ["-o", "tty=", "-p", String(pid)]),
+                  let tty = TtyResolver.ttyPath(fromPS: psOut) else { return }
+            _ = runProcess("/usr/bin/osascript", ["-e", ITermScript.focus(tty: tty)])
+        }
     }
 
     private static func shell(_ launchPath: String, _ args: [String]) -> String? {
