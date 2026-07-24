@@ -37,4 +37,19 @@ final class DeckPreferencesTests: XCTestCase {
         try Data("not json".utf8).write(to: url)
         XCTAssertEqual(DeckPreferences.load(from: url), DeckPreferences())
     }
+
+    func testDefaultStuckThreshold() {
+        XCTAssertEqual(DeckPreferences().stuckThresholdSeconds, 180)
+    }
+
+    func testLoadLegacyFileWithoutStuckThresholdKeepsOtherFields() throws {
+        let url = tempFile()
+        try Data(#"{"brightness":25,"pagingEnabled":false,"hiddenProjects":["notes"]}"#.utf8)
+            .write(to: url)
+        let loaded = DeckPreferences.load(from: url)
+        XCTAssertEqual(loaded.brightness, 25)
+        XCTAssertFalse(loaded.pagingEnabled)
+        XCTAssertEqual(loaded.hiddenProjects, ["notes"])
+        XCTAssertEqual(loaded.stuckThresholdSeconds, 180)  // defaulted, not lost
+    }
 }

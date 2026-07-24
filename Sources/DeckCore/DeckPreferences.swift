@@ -10,12 +10,32 @@ public struct DeckPreferences: Codable, Equatable {
     public var pagingEnabled: Bool
     /// Project group names to hide from the deck (empty = show all).
     public var hiddenProjects: [String]
+    /// Seconds a `waiting` session must sit untouched before the deck escalates
+    /// its pulse (louder blink). Default 180 (3 min).
+    public var stuckThresholdSeconds: TimeInterval
 
     public init(brightness: Int = 60, pagingEnabled: Bool = true,
-                hiddenProjects: [String] = []) {
+                hiddenProjects: [String] = [], stuckThresholdSeconds: TimeInterval = 180) {
         self.brightness = brightness
         self.pagingEnabled = pagingEnabled
         self.hiddenProjects = hiddenProjects
+        self.stuckThresholdSeconds = stuckThresholdSeconds
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case brightness, pagingEnabled, hiddenProjects, stuckThresholdSeconds
+    }
+
+    /// Decode field-by-field so an older `prefs.json` missing any key falls back
+    /// to that field's default instead of failing the whole decode (which would
+    /// silently reset every saved preference).
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        brightness = try c.decodeIfPresent(Int.self, forKey: .brightness) ?? 60
+        pagingEnabled = try c.decodeIfPresent(Bool.self, forKey: .pagingEnabled) ?? true
+        hiddenProjects = try c.decodeIfPresent([String].self, forKey: .hiddenProjects) ?? []
+        stuckThresholdSeconds = try c.decodeIfPresent(TimeInterval.self,
+                                                      forKey: .stuckThresholdSeconds) ?? 180
     }
 
     public static func load(from url: URL = DeckPaths.prefsFile) -> DeckPreferences {
