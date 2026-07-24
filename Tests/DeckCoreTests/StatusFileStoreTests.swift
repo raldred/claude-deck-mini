@@ -11,7 +11,7 @@ final class StatusFileStoreTests: XCTestCase {
 
     func testWriteThenReadAllRoundtrips() throws {
         let store = StatusFileStore(directory: tempDir())
-        let event = StatusEvent(sessionId: "c1", status: .waiting, cwd: "/w",
+        let event = StatusEvent(sessionId: "c1", status: .idle, cwd: "/w",
                                 timestamp: Date(timeIntervalSince1970: 1))
 
         try store.write(event)
@@ -21,7 +21,7 @@ final class StatusFileStoreTests: XCTestCase {
 
     func testRemoveFileDeletesTheStatusFile() throws {
         let store = StatusFileStore(directory: tempDir())
-        try store.write(StatusEvent(sessionId: "c1", status: .waiting, cwd: nil,
+        try store.write(StatusEvent(sessionId: "c1", status: .idle, cwd: nil,
                                     timestamp: Date(timeIntervalSince1970: 1)))
         XCTAssertEqual(try store.readAll().count, 1)
 
@@ -37,7 +37,7 @@ final class StatusFileStoreTests: XCTestCase {
 
     func testWriteOverwritesSameSessionId() throws {
         let store = StatusFileStore(directory: tempDir())
-        let first = StatusEvent(sessionId: "c1", status: .working, cwd: nil,
+        let first = StatusEvent(sessionId: "c1", status: .thinking, cwd: nil,
                                 timestamp: Date(timeIntervalSince1970: 1))
         let second = StatusEvent(sessionId: "c1", status: .idle, cwd: nil,
                                  timestamp: Date(timeIntervalSince1970: 2))

@@ -4,7 +4,7 @@ import XCTest
 final class FirstSeenTrackerTests: XCTestCase {
     private func session(_ id: String, lastActivity t: TimeInterval) -> Session {
         Session(sessionId: id, workingDirectory: URL(fileURLWithPath: "/w"),
-                status: .working, lastActivity: Date(timeIntervalSince1970: t))
+                status: .thinking, lastActivity: Date(timeIntervalSince1970: t))
     }
 
     func testNewSessionStampsFromLastActivity() {

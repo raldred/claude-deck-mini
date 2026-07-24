@@ -21,7 +21,7 @@ final class HookCommandTests: XCTestCase {
         let all = try store.readAll()
         XCTAssertEqual(all.count, 1)
         XCTAssertEqual(all.first?.sessionId, "s1")
-        XCTAssertEqual(all.first?.status, .waiting)
+        XCTAssertEqual(all.first?.status, .turnDone)
     }
 
     func testWorkingEventWritesStatusFile() throws {
@@ -29,7 +29,7 @@ final class HookCommandTests: XCTestCase {
         try HookCommand.handle(
             jsonData: json(#"{"session_id":"s1","hook_event_name":"PreToolUse","cwd":"/w","tool_name":"Bash"}"#),
             store: store, now: now)
-        XCTAssertEqual(try store.readAll().first?.status, .working)
+        XCTAssertEqual(try store.readAll().first?.status, .thinking)
     }
 
     func testSessionEndRemovesStatusFile() throws {
@@ -49,7 +49,7 @@ final class HookCommandTests: XCTestCase {
     func testIgnoredEventDoesNothing() throws {
         let store = tempStore()
         let applied = try HookCommand.handle(
-            jsonData: json(#"{"session_id":"s1","hook_event_name":"PreCompact","cwd":"/w"}"#),
+            jsonData: json(#"{"session_id":"s1","hook_event_name":"Wibble","cwd":"/w"}"#),
             store: store, now: now)
         XCTAssertNil(applied)
         XCTAssertEqual(try store.readAll().count, 0)

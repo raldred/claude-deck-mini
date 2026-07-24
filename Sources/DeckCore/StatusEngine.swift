@@ -30,7 +30,7 @@ public enum StatusEngine {
         var events: [StatusEvent] = []
         for (url, event) in store.readAllWithURLs() {
             let processGone = event.pid.map { !isAlive($0) } ?? false
-            let idleTooLong = event.status == .waiting
+            let idleTooLong = event.status.tier == .needsYou
                 && now.timeIntervalSince(event.timestamp) > Self.idleReapAfter
             if processGone || idleTooLong {
                 store.removeFile(at: url)

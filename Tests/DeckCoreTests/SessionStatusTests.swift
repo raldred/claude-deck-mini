@@ -2,40 +2,57 @@ import XCTest
 @testable import DeckCore
 
 final class SessionStatusTests: XCTestCase {
-    func testWorkingEvents() {
-        XCTAssertEqual(HookEventName.sessionStart.status, .working)
-        XCTAssertEqual(HookEventName.userPromptSubmit.status, .working)
-        // Tool use means Claude is actively working — crucially this flips back
-        // to working after a permission grant (which fires no UserPromptSubmit).
-        XCTAssertEqual(HookEventName.preToolUse.status, .working)
-        XCTAssertEqual(HookEventName.postToolUse.status, .working)
+    func testWorkingEventsMapToThinking() {
+        XCTAssertEqual(HookEventName.sessionStart.status, .thinking)
+        XCTAssertEqual(HookEventName.userPromptSubmit.status, .thinking)
+        XCTAssertEqual(HookEventName.preToolUse.status, .thinking)
+        XCTAssertEqual(HookEventName.postToolUse.status, .thinking)
+        XCTAssertEqual(HookEventName.postCompact.status, .thinking)
     }
 
-    func testSessionEndIsFinished() {
-        XCTAssertEqual(HookEventName.sessionEnd.status, .finished)
+    func testCompactionAndTurnAndPermission() {
+        XCTAssertEqual(HookEventName.preCompact.status, .compacting)
+        XCTAssertEqual(HookEventName.stop.status, .turnDone)
+        XCTAssertEqual(HookEventName.permissionRequest.status, .permission)
+        XCTAssertEqual(HookEventName.sessionEnd.status, .ended)
     }
 
-    // Anything where Claude has stopped and it's the user's move is "needs you":
-    // a finished turn (Stop), a permission prompt, or the idle "waiting for your
-    // input" notification all collapse into the single highlighted waiting state.
-    func testNeedsYouEventsAllMapToWaiting() {
-        XCTAssertEqual(HookEventName.stop.status, .waiting)
-        XCTAssertEqual(HookEventName.notification.status, .waiting)
-        XCTAssertEqual(HookEventName.permissionRequest.status, .waiting)
+    // Notification's fine status depends on notification_type, resolved in
+    // HookHandler; the event's own default is the idle nudge.
+    func testNotificationDefaultsToIdle() {
+        XCTAssertEqual(HookEventName.notification.status, .idle)
     }
 
-    func testHookEventParsesFromRawClaudeName() {
-        XCTAssertEqual(HookEventName(rawValue: "Notification"), .notification)
+    func testTiers() {
+        XCTAssertEqual(SessionStatus.permission.tier, .needsYou)
+        XCTAssertEqual(SessionStatus.turnDone.tier, .needsYou)
+        XCTAssertEqual(SessionStatus.idle.tier, .needsYou)
+        XCTAssertEqual(SessionStatus.thinking.tier, .working)
+        XCTAssertEqual(SessionStatus.compacting.tier, .working)
+        XCTAssertEqual(SessionStatus.ended.tier, .ended)
+    }
+
+    func testSortPriorityOrdersNeedsYouThenWorkingThenEnded() {
+        XCTAssertLessThan(SessionStatus.permission.sortPriority, SessionStatus.thinking.sortPriority)
+        XCTAssertLessThan(SessionStatus.thinking.sortPriority, SessionStatus.ended.sortPriority)
+    }
+
+    func testHookEventParsesNewNames() {
+        XCTAssertEqual(HookEventName(rawValue: "PreCompact"), .preCompact)
+        XCTAssertEqual(HookEventName(rawValue: "PostCompact"), .postCompact)
         XCTAssertEqual(HookEventName(rawValue: "PermissionRequest"), .permissionRequest)
-        XCTAssertEqual(HookEventName(rawValue: "Stop"), .stop)
-        XCTAssertEqual(HookEventName(rawValue: "PreToolUse"), .preToolUse)
-        XCTAssertEqual(HookEventName(rawValue: "PostToolUse"), .postToolUse)
-        XCTAssertNil(HookEventName(rawValue: "PreCompact"))
     }
 
-    func testSortPriorityOrdersWaitingFirst() {
-        XCTAssertLessThan(SessionStatus.waiting.sortPriority, SessionStatus.working.sortPriority)
-        XCTAssertLessThan(SessionStatus.working.sortPriority, SessionStatus.idle.sortPriority)
-        XCTAssertLessThan(SessionStatus.idle.sortPriority, SessionStatus.finished.sortPriority)
+    // Legacy status files (written before this change) and any unknown value
+    // decode to a safe working default instead of dropping the record.
+    func testLegacyAndUnknownStatusDecode() throws {
+        func decode(_ raw: String) throws -> SessionStatus {
+            try JSONDecoder().decode(SessionStatus.self, from: Data("\"\(raw)\"".utf8))
+        }
+        XCTAssertEqual(try decode("working"), .thinking)
+        XCTAssertEqual(try decode("waiting"), .idle)
+        XCTAssertEqual(try decode("idle"), .idle)
+        XCTAssertEqual(try decode("wibble"), .thinking)
+        XCTAssertEqual(try decode("permission"), .permission)
     }
 }

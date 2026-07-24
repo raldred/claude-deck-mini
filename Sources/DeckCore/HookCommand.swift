@@ -11,7 +11,7 @@ public enum HookCommand {
     public static func handle(jsonData: Data, store: StatusFileStore,
                               now: Date) throws -> StatusEvent? {
         guard let event = try HookHandler.makeEvent(jsonData: jsonData, now: now) else { return nil }
-        if event.status == .finished {
+        if event.status == .ended {
             try store.removeFile(sessionId: event.sessionId)
         } else {
             try store.write(event)

@@ -11,11 +11,13 @@ public struct HookInput: Codable, Equatable {
     public let hookEventName: String
     public let cwd: String?
     public let toolName: String?
+    public let notificationType: String?
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
         case hookEventName = "hook_event_name"
         case cwd
         case toolName = "tool_name"
+        case notificationType = "notification_type"
     }
 }

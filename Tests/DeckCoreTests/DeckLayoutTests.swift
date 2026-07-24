@@ -9,7 +9,7 @@ final class DeckLayoutTests: XCTestCase {
         return NameResolver(gitRunner: NoGit())
     }
 
-    private func sessions(_ n: Int, status: SessionStatus = .working) -> [Session] {
+    private func sessions(_ n: Int, status: SessionStatus = .thinking) -> [Session] {
         (0..<n).map { i in
             Session(sessionId: "s\(i)",
                     workingDirectory: URL(fileURLWithPath: "/Code/proj\(i)"),
@@ -77,18 +77,18 @@ final class DeckLayoutTests: XCTestCase {
     }
 
     func testStatusDoesNotChangeSlot() {
-        // A session going to .waiting must keep its slot — order is fixed by
+        // A session going to needs-you must keep its slot — order is fixed by
         // first-seen, so the last session stays last even when it needs you.
-        var s = sessions(6, status: .working)
-        s[5].status = .waiting
+        var s = sessions(6, status: .thinking)
+        s[5].status = .idle
         s[5].lastActivity = Date(timeIntervalSince1970: 1)
         let keys = DeckLayout.keys(for: s, page: 0, now: now, resolver: resolver)
-        // First key is still s0 (working); the waiting session stays in slot 5.
+        // First key is still s0 (thinking); the idle session stays in slot 5.
         if case let .agent(_, status, _, _, _) = keys[0].kind {
-            XCTAssertEqual(status, .working)
+            XCTAssertEqual(status, .thinking)
         } else { XCTFail("expected agent") }
         if case let .agent(_, status, _, _, _) = keys[5].kind {
-            XCTAssertEqual(status, .waiting)
+            XCTAssertEqual(status, .idle)
         } else { XCTFail("expected agent") }
     }
 
@@ -98,12 +98,12 @@ final class DeckLayoutTests: XCTestCase {
             return XCTFail("expected agent")
         }
         XCTAssertEqual(label, .plain("proj0"))
-        XCTAssertEqual(status, .working)
+        XCTAssertEqual(status, .thinking)
         XCTAssertFalse(age.isEmpty)
     }
 
     func testWaitingSessionMarkedStuckPastThreshold() {
-        var s = sessions(1, status: .waiting)
+        var s = sessions(1, status: .idle)
         s[0].lastActivity = now.addingTimeInterval(-200)  // 200s ago > 180 default
         let keys = DeckLayout.keys(for: s, page: 0, now: now, resolver: resolver)
         guard case let .agent(_, _, _, _, stuck) = keys[0].kind else { return XCTFail("expected agent") }
@@ -111,7 +111,7 @@ final class DeckLayoutTests: XCTestCase {
     }
 
     func testWaitingSessionNotStuckBeforeThreshold() {
-        var s = sessions(1, status: .waiting)
+        var s = sessions(1, status: .idle)
         s[0].lastActivity = now.addingTimeInterval(-10)
         let keys = DeckLayout.keys(for: s, page: 0, now: now, resolver: resolver)
         guard case let .agent(_, _, _, _, stuck) = keys[0].kind else { return XCTFail("expected agent") }
@@ -119,7 +119,7 @@ final class DeckLayoutTests: XCTestCase {
     }
 
     func testWorkingSessionNeverStuck() {
-        var s = sessions(1, status: .working)
+        var s = sessions(1, status: .thinking)
         s[0].lastActivity = now.addingTimeInterval(-9999)
         let keys = DeckLayout.keys(for: s, page: 0, now: now, resolver: resolver)
         guard case let .agent(_, _, _, _, stuck) = keys[0].kind else { return XCTFail("expected agent") }

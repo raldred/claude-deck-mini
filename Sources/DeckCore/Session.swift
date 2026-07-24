@@ -24,7 +24,7 @@ public struct Session: Identifiable, Equatable {
     public var id: String { sessionId }
 
     public init(sessionId: String, workingDirectory: URL,
-                status: SessionStatus = .working, lastActivity: Date = .distantPast,
+                status: SessionStatus = .thinking, lastActivity: Date = .distantPast,
                 firstSeen: Date? = nil, pid: Int? = nil) {
         self.sessionId = sessionId
         self.workingDirectory = workingDirectory
