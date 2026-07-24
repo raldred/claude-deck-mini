@@ -33,11 +33,39 @@ def test_all_kinds_paint_a_correct_sized_image():
 
 def test_status_band_color_matches_status():
     img = render.paint_key(
-        {"kind": "agent", "repo": "r", "branch": "b", "status": "waiting", "age": "1m"},
+        {"kind": "agent", "repo": "r", "branch": "b", "status": "permission", "age": "1m"},
         size=(80, 80))
-    # Top-left pixel is inside the status band → should be the waiting red.
-    _check(img.getpixel((2, 1)) == render.STATUS_COLORS["waiting"],
+    # Top-left pixel is inside the status band → should be the permission red.
+    _check(img.getpixel((2, 1)) == render.STATUS_COLORS["permission"],
            "status band color mismatch")
+
+
+def test_each_status_paints_its_band_colour():
+    for status, colour in render.STATUS_COLORS.items():
+        img = render.paint_key(
+            {"kind": "agent", "repo": "r", "status": status, "age": "1m"}, size=(80, 80))
+        _check(img.getpixel((2, 1)) == colour, f"band colour mismatch for {status}")
+
+
+def test_needs_you_statuses_grouped():
+    _check(render.NEEDS_YOU == {"permission", "turn_done", "idle"},
+           f"unexpected NEEDS_YOU set: {render.NEEDS_YOU}")
+
+
+def test_glyph_statuses_draw_white_top_right_pixels():
+    def top_right_has_white(status):
+        img = render.paint_key(
+            {"kind": "agent", "repo": "r", "status": status, "age": "1m"}, size=(80, 80))
+        px = img.load()
+        for x in range(60, 80):
+            for y in range(5, 24):
+                r, g, b = px[x, y]
+                if r > 200 and g > 200 and b > 200:
+                    return True
+        return False
+    for status in ("permission", "turn_done", "idle", "compacting"):
+        _check(top_right_has_white(status), f"{status} should draw a glyph")
+    _check(not top_right_has_white("thinking"), "thinking should have no glyph")
 
 
 def test_long_repo_is_truncated_not_crashing():
@@ -85,7 +113,7 @@ def test_marquee_paints_correct_size():
 
 
 def test_pulse_dims_the_waiting_band():
-    spec = {"kind": "agent", "repo": "r", "branch": "b", "status": "waiting", "age": "1m"}
+    spec = {"kind": "agent", "repo": "r", "branch": "b", "status": "idle", "age": "1m"}
     full = render.paint_key(spec, size=(80, 80), pulse=1.0).getpixel((2, 1))
     dim = render.paint_key(spec, size=(80, 80), pulse=0.5).getpixel((2, 1))
     _check(sum(dim) < sum(full), "pulse=0.5 band should be dimmer than pulse=1.0")
@@ -155,6 +183,9 @@ def test_no_badge_when_no_subagents():
 if __name__ == "__main__":
     test_all_kinds_paint_a_correct_sized_image()
     test_status_band_color_matches_status()
+    test_each_status_paints_its_band_colour()
+    test_needs_you_statuses_grouped()
+    test_glyph_statuses_draw_white_top_right_pixels()
     test_long_repo_is_truncated_not_crashing()
     test_banner_cells_are_correct_size_and_differ_by_index()
     test_banner_kind_routes_through_paint_key()

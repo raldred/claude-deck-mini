@@ -53,7 +53,7 @@ def _long_scene():
         "keys": [
             {"index": 0, "kind": "agent", "repo": "a-really-long-repo-name",
              "status": "working", "age": "1m"},
-            {"index": 1, "kind": "agent", "repo": "x", "status": "waiting", "age": "2m"},
+            {"index": 1, "kind": "agent", "repo": "x", "status": "permission", "age": "2m"},
         ],
     }
 
@@ -102,11 +102,12 @@ def test_changed_scene_resets_animation_state():
     with d._lock:
         d._animate_key(0, d._scene.get(0), 1)  # seed some scroll on key 0
     _check(d._anim, "expected anim state before change")
-    # A genuinely different scene resets _anim and recomputes _animated.
+    # A genuinely different scene resets _anim and recomputes _animated. A short
+    # thinking key (not needs-you, title fits) animates nothing.
     d.handle({"cmd": "render", "keys": [
-        {"index": 0, "kind": "agent", "repo": "y", "status": "idle", "age": "3m"}]})
+        {"index": 0, "kind": "agent", "repo": "y", "status": "thinking", "age": "3m"}]})
     _check(d._anim == {}, f"changed scene should clear _anim, got {d._anim}")
-    _check(d._animated == set(), f"short idle scene animates nothing, got {d._animated}")
+    _check(d._animated == set(), f"short thinking scene animates nothing, got {d._animated}")
 
 
 def test_empty_render_shows_no_animated_keys():
